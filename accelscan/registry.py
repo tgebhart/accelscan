@@ -50,6 +50,14 @@ class Model:
     release: str | None = None
     release_source: str | None = None
     notes: str | None = None
+    # per-device specs, scraped from the source tables (never hardcoded);
+    # None = unknown -> excluded per-axis by the capacity estimands
+    fp32_gflops: float | None = None
+    fp64_gflops: float | None = None
+    fp16_tensor_gflops: float | None = None
+    vram_gb: float | None = None
+    tdp_w: float | None = None
+    spec_source: str | None = None
     aliases: list = field(default_factory=list)
 
 
@@ -193,6 +201,10 @@ def load_registry(registry_dir: Path | str = REGISTRY_DIR) -> CompiledRegistry:
             architecture=e.get('architecture'), subtype=e.get('subtype'),
             segment=e.get('segment'), release=str(e['release']) if e.get('release') else None,
             release_source=e.get('release_source'), notes=e.get('notes'),
+            fp32_gflops=e.get('fp32_gflops'), fp64_gflops=e.get('fp64_gflops'),
+            fp16_tensor_gflops=e.get('fp16_tensor_gflops'),
+            vram_gb=e.get('vram_gb'), tdp_w=e.get('tdp_w'),
+            spec_source=e.get('spec_source'),
         )
         models[model.id] = model
         for raw in e.get('aliases', []):

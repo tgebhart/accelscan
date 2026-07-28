@@ -48,11 +48,83 @@ python -m accelscan.repack
 sbatch slurm/stage2_infer.txt
 #   (b) single GPU, many shards in one process (model loaded once, .done-skip per shard):
 python -m accelscan.infer --shards 0-35 --model Qwen/Qwen3-14B
+
+# stage 3.5: reported compute capacity per paper (CPU, minutes)
+python -m accelscan.compute                         # primary (floor-1 counts)
+python -m accelscan.compute --count-policy explicit # robustness variant
+
+# stage 1.6 (optional): numerical-precision flags from stored passages
+python -m accelscan.precision
+
+# topical clustering (see "Topics" below)
+sbatch slurm/embed_specter2.txt        # SPECTER2 abstract embeddings [GPU]
+sbatch slurm/cluster.txt               # BERTopic UMAP+HDBSCAN [msibigmem]
 ```
 
-Stage 3 (normalize to paper×model) and stage 4 (denominator + panels) live in
-`accelscan/normalize.py` / `accelscan/denominator.py` / `accelscan/panels.py`
-(to be added after the pilot freeze).
+## Capacity estimands (stage 3.5)
+
+`accelscan/compute.py` joins per-device specs to used-in-this-work mentions:
+`reported_flops = Σ device_count × per-device peak`, likewise VRAM and TDP.
+
+- **Specs are scraped, never hardcoded.** `scripts/build_registry.py` parses the
+  Processing-power / Memory / TDP columns out of the same cached source tables
+  that supply release dates, into `fp32_gflops`, `fp64_gflops`,
+  `fp16_tensor_gflops`, `vram_gb`, `tdp_w` + `spec_source`. Validated against
+  published values in `tests/test_specs.py` (V100, A100, H100, K80, GTX 1080/Ti,
+  RTX 3090/4090, MI250X, 8800 GTX).
+- **Tensor throughput is never mixed into FP32.** The data-center table names its
+  tensor column "Half precision Tensor Core FP32 Accumulate"; a test asserts the
+  separation (it caused an ~8× inflation before being caught).
+- **Interpretation: reported nameplate peak, not utilized FLOPs.** Every figure
+  carries this caveat.
+- Device counts are winsorized (per-year p99.9, hard cap 65,536) — the raw
+  extraction contains a 13M outlier. Verified max after winsorizing is 18,688
+  (Titan's real GPU count).
+- Missing specs are **null, never zero-filled**, with `spec_missing_*` flags and a
+  published spec-coverage-by-year table (fp32 coverage: 55% in 2010 → ~83% after 2019).
+
+## Versioning note
+
+Outputs are namespaced by the registry version at the stage that produced them.
+Mentions were extracted under registry `0.1.0`; adding models/specs bumped the
+registry to `0.2.0` **without re-running the LLM** (extraction is
+registry-independent — verified: RTX 4090 was already extracted 13k times before
+the registry knew the card). Downstream stages therefore call
+`accelscan.s3.mentions_glob()`, which discovers the extraction-time version
+rather than assuming the current one.
+
+## Stage 4a: analytic tables (`accelscan/denominator.py`)
+
+```bash
+python -m accelscan.denominator        # denominator + paper_flags + citations
+```
+
+Writes to `s3://…/accelscan/analytic/{registry}/{prompt}/{model_tag}/`:
+
+| table | rows | contents |
+|---|---|---|
+| `denominator` | 12,408,584 | one row per S2ORC full-text paper: year, field, `is_candidate`. **The population** — required so prevalence shares have a correct base. |
+| `paper_flags` | 352,822 | per-paper accelerator numerators: any mention / reported use / model-specific, manufacturers, subtypes, model vintage, max device count. |
+| `citations` | 347,829 | `citations_5y` (`i_5`) and `disruption_5y` (`cd_5`, CD index) from the lab's precomputed outcomes table, plus `window_complete` (≤2020) and `has_outcomes` (83.4% match). |
+
+Very large inputs (papers, citations) are read part-by-part (`_by_part`) so memory
+stays bounded regardless of table size.
+
+## Notebooks (one per paper section)
+
+| notebook | section | contents |
+|---|---|---|
+| `trends.ipynb` | §4 | corpus composition, prevalence, **reporting specificity (2.8%→75.8%)**, mention-context mix, field adoption lag, measurement funnel |
+| `capacity.ipynb` | §5 | FLOPS/VRAM growth vs the vendor frontier, spec coverage, scale-out, precision capability-vs-choice, **inequality: Lorenz + bootstrapped Gini + Theil between/within-field** |
+| `productivity.ipynb` | §6 | paper support (full/fractional), **productive half-life with CIs + censoring + per-model diagnostics**, adoption lag by generation, citation & disruption support, rank-stability |
+| `gpu_topics.ipynb` | §7 | GPU overlay on SPECTER2/BERTopic topics (frontier-lag by topic, segment mix) |
+| `manufacturer.ipynb` | §8 | vendor shares, HHI/entropy, **CUDA lock-in proxy**, multi-vendor papers, **export-control parts (A800/H800/H20)** |
+| `gpu_usage.ipynb` | — | original exploratory manufacturer/model view |
+
+Every notebook starts with a chdir-to-repo-root guard (they use repo-relative
+paths like `registry/hardware.yaml`) and reads the `Python (accelscan)` kernel.
+
+Remaining stub: `accelscan/panels.py` (tidy year×field×model export panels).
 
 ## Tests
 
