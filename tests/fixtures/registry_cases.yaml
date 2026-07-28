@@ -1,0 +1,62 @@
+# Labeled paragraph-level matcher cases. `expect` lists the model ids that
+# survive local gating (no paper-level rescue, no neighbor context).
+# Every false positive/negative found in pilots or audits gets added here.
+cases:
+  - text: "We trained on 8 NVIDIA V100 GPUs with 32GB memory each."
+    expect: [generic-gpu, nvidia-v100]
+  - text: "Using a Tesla-V100 accelerator via CUDA 10.1."
+    expect: [generic-cuda, nvidia-v100]
+  - text: "All experiments used a GeForce GTX 1080 Ti."
+    expect: [nvidia-geforce-gtx-1080-ti]
+  - text: "experiments ran on an RTX 3090 Ti and an RTX 3090."
+    expect: [nvidia-geforce-rtx-3090, nvidia-geforce-rtx-3090-ti]
+  - text: "a single K80 GPU was used for all runs"
+    expect: [generic-gpu, nvidia-k80]
+  - text: "implemented in OpenCL on a Radeon HD 5870"
+    expect: [amd-radeon-hd-5870, generic-opencl]
+  - text: "inference on TPU v3-8 pods"
+    expect: [google-tpu-v3]        # specific model suppresses generic-tpu span
+  - text: "MI250X GPUs on the Frontier supercomputer"
+    expect: [amd-mi250x, generic-gpu]
+  - text: "NVIDIA's Fermi GPU architecture doubled throughput"
+    expect: [arch-fermi, generic-gpu, vendor-nvidia]
+  - text: "we simulated the model on 4 GPUs"
+    expect: [generic-gpu]
+  - text: "an Apple M2 MacBook Pro was used for analysis"
+    expect: [apple-m2]
+  - text: "training used TPUv4 chips"
+    expect: [google-tpu-v4]
+  - text: "an A100 80GB GPU served the model"
+    expect: [generic-gpu, nvidia-a100]
+
+  # ---- hard negatives -------------------------------------------------
+  - text: "the BMW M2 competition model drove fast"
+    expect: []
+  - text: "K80 cells were cultured overnight"
+    expect: []
+  - text: "1080p video recordings were collected"
+    expect: []
+  - text: "The patient's P100 latency in the ECG was elevated"
+    expect: []
+  - text: "the fermi surface of the material"
+    expect: []
+  - text: "a 3 Tesla MRI scanner acquired the images"
+    expect: []
+  - text: "the Turing test remains a benchmark for machine intelligence"
+    expect: []
+  - text: "Blaise Pascal wrote extensively on probability"
+    expect: []
+  - text: "M2 money supply grew by 4% year over year"
+    expect: []
+  - text: "the barracuda swam past the reef"
+    expect: []
+  - text: "IPU admission rates increased during the pandemic"
+    expect: []      # intensive-care IPU must not hit graphcore-ipu without GPU context
+  - text: "we train a two-layer GCN on a single GPU"
+    expect: [generic-gpu]    # graph convolutional network, not AMD GCN
+  - text: "optimized kernels for the AMD GCN architecture"
+    expect: [arch-gcn]    # 'AMD' is subsumed by the longer 'AMD GCN' span
+
+  # ---- gate behavior: bare code without local context fails ----------
+  - text: "we used an A100 for training"
+    expect: []      # rescued only by paper-level tier-A hit (tested in test_scan)

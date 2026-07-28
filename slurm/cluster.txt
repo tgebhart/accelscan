@@ -1,0 +1,17 @@
+#!/bin/bash -l
+#SBATCH --time=4:00:00
+#SBATCH -p msibigmem
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=200gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+export PYTHONUNBUFFERED=TRUE
+export OMP_NUM_THREADS=16
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+python -m accelscan.cluster --embed-tag specter2-base --reduce-outliers

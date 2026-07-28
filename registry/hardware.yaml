@@ -1,0 +1,221 @@
+# accelscan hand-maintained registry stub.
+#
+# Model entries are GENERATED from Wikipedia/vendor sources by
+# accelscan/scripts/build_registry.py into registry/generated/*.yaml.
+# This file holds what can't be scraped: context-term gate vocabularies,
+# generic/vendor/architecture entries, and hand overrides. The loader
+# (accelscan/registry.py) merges this file with registry/generated/*.yaml;
+# an entry here with the same id as a generated one replaces it.
+#
+# Pattern conventions (enforced/expanded by accelscan/registry.py):
+#   - Literal spaces in patterns compile to [\s-]* ('RTX 3090' matches
+#     "RTX 3090", "RTX-3090", "RTX3090").
+#   - Patterns are wrapped in (?<!\w) ... s? (?!\w) word boundaries with an
+#     automatic optional plural 's'.
+#   - case: auto (default) = case-sensitive when the pattern's letters are all
+#     uppercase (GPU, V100, K80); case-insensitive otherwise. Override with
+#     case: sensitive|insensitive.
+#   - A plain string alias is shorthand for {pattern: <str>}.
+#   - gate: <name> makes the alias tier B — it counts only when a
+#     context_terms[<name>] regex appears within ±250 chars, or the paper has
+#     a tier-A model hit elsewhere.
+#   - kind: model (default) | architecture | generic.
+
+version: "0.1.0"
+
+context_terms:
+  gpu: ["GPU", "GPUs", "GPGPU", "graphics card", "graphics cards", "video card",
+        "CUDA", "cuDNN", "OpenCL", "NVIDIA", "GeForce", "Radeon", "Quadro",
+        "GTX", "RTX", "VRAM", "TFLOPS", "teraflops", "accelerator", "accelerators",
+        "graphics processing"]
+  tpu: ["TPU", "TPUs", "tensor processing", "Cloud TPU", "Google Cloud"]
+  apple: ["Apple", "MacBook", "Mac Studio", "Mac mini", "iMac", "macOS",
+          "Neural Engine", "M-series"]
+
+models:
+
+  # ------------------------------------------------------------------
+  # Generic terms (first-class: measure generic-only vs model-specific)
+  # ------------------------------------------------------------------
+  - id: generic-gpu
+    display: "generic GPU"
+    manufacturer: unknown
+    subtype: generic-gpu
+    kind: generic
+    aliases: ["GPU", "GPGPU", "graphics processing unit", "graphics card", "video card"]
+  - id: generic-cuda
+    display: "CUDA (NVIDIA GPU compute)"
+    manufacturer: nvidia
+    subtype: generic-gpu
+    kind: generic
+    aliases: ["CUDA", {pattern: "cuDNN", case: sensitive}]
+  - id: generic-opencl
+    display: "OpenCL"
+    manufacturer: unknown
+    subtype: generic-gpu
+    kind: generic
+    aliases: [{pattern: "OpenCL", case: insensitive}]
+  - id: generic-tpu
+    display: "generic TPU"
+    manufacturer: google
+    subtype: generic-tpu
+    kind: generic
+    aliases: ["TPU", "tensor processing unit"]
+  - id: generic-npu
+    display: "generic NPU"
+    manufacturer: unknown
+    subtype: generic-npu
+    kind: generic
+    aliases: ["NPU", "neural processing unit"]
+  - id: generic-fpga
+    display: "generic FPGA"
+    manufacturer: unknown
+    subtype: generic-fpga
+    kind: generic
+    aliases: ["FPGA", "field programmable gate array"]
+  - id: generic-accelerator
+    display: "generic hardware accelerator"
+    manufacturer: unknown
+    subtype: generic-accelerator
+    kind: generic
+    aliases: ["hardware accelerator", "AI accelerator", "accelerator card"]
+
+  # Vendor/brand triggers with no model number (candidate recall for
+  # "an NVIDIA graphics card"-style mentions). 'Tesla' is gated: MRI field
+  # strengths ("3 Tesla scanner") and the car company dominate bare usage.
+  - id: vendor-nvidia
+    display: "NVIDIA (brand mention)"
+    manufacturer: nvidia
+    subtype: generic-gpu
+    kind: generic
+    aliases: [{pattern: "NVIDIA", case: insensitive}, "GeForce", "Quadro",
+              {pattern: "Tesla", gate: gpu, case: sensitive}]
+  - id: vendor-amd
+    display: "AMD/ATI (brand mention)"
+    manufacturer: amd
+    subtype: generic-gpu
+    kind: generic
+    aliases: ["Radeon", {pattern: "AMD", gate: gpu}, {pattern: "ATI", gate: gpu}]
+
+  # ------------------------------------------------------------------
+  # Architecture words (gated; Fermi=physicist, Pascal=language/person,
+  # Turing/Hopper=people, Ampere=unit — all case-sensitive words)
+  # ------------------------------------------------------------------
+  - {id: arch-fermi, display: "NVIDIA Fermi architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2010-03,
+     aliases: [{pattern: "Fermi", gate: gpu, case: sensitive}]}
+  - {id: arch-kepler, display: "NVIDIA Kepler architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2012-03,
+     aliases: [{pattern: "Kepler", gate: gpu, case: sensitive}]}
+  - {id: arch-maxwell, display: "NVIDIA Maxwell architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2014-02,
+     aliases: [{pattern: "Maxwell", gate: gpu, case: sensitive}]}
+  - {id: arch-pascal, display: "NVIDIA Pascal architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2016-05,
+     aliases: [{pattern: "Pascal", gate: gpu, case: sensitive}]}
+  - {id: arch-volta, display: "NVIDIA Volta architecture", manufacturer: nvidia,
+     subtype: datacenter-gpu, kind: architecture, release: 2017-05,
+     aliases: [{pattern: "Volta", gate: gpu, case: sensitive}]}
+  - {id: arch-turing, display: "NVIDIA Turing architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2018-09,
+     aliases: [{pattern: "Turing", gate: gpu, case: sensitive}]}
+  - {id: arch-ampere, display: "NVIDIA Ampere architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2020-05,
+     aliases: [{pattern: "Ampere", gate: gpu, case: sensitive}]}
+  - {id: arch-ada, display: "NVIDIA Ada Lovelace architecture", manufacturer: nvidia,
+     subtype: generic-gpu, kind: architecture, release: 2022-10,
+     aliases: [{pattern: "Ada Lovelace", gate: gpu}]}
+  - {id: arch-hopper, display: "NVIDIA Hopper architecture", manufacturer: nvidia,
+     subtype: datacenter-gpu, kind: architecture, release: 2022-03,
+     aliases: [{pattern: "Hopper", gate: gpu, case: sensitive}]}
+  - {id: arch-blackwell, display: "NVIDIA Blackwell architecture", manufacturer: nvidia,
+     subtype: datacenter-gpu, kind: architecture, release: 2024-03,
+     aliases: [{pattern: "Blackwell", gate: gpu, case: sensitive}]}
+  # Bare 'GCN' (even GPU-gated) is dominated by Graph Convolutional Networks
+  # in ML papers — only unambiguous forms are allowed.
+  - {id: arch-gcn, display: "AMD GCN architecture", manufacturer: amd,
+     subtype: generic-gpu, kind: architecture, release: 2012-01,
+     aliases: ["AMD GCN", "Graphics Core Next"]}
+  - {id: arch-rdna, display: "AMD RDNA architecture", manufacturer: amd,
+     subtype: consumer-gpu, kind: architecture, release: 2019-07,
+     aliases: [{pattern: "RDNA[1-4]?", gate: gpu}]}
+  - {id: arch-cdna, display: "AMD CDNA architecture", manufacturer: amd,
+     subtype: datacenter-gpu, kind: architecture, release: 2020-11,
+     aliases: [{pattern: "CDNA[1-4]?", gate: gpu}]}
+
+  # ------------------------------------------------------------------
+  # Long-tail accelerators not covered by the scraped Wikipedia list pages
+  # (release dates from vendor announcements / Wikipedia product pages).
+  # ------------------------------------------------------------------
+  - {id: apple-m1, display: "Apple M1", manufacturer: apple, family: m-series,
+     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2020-11,
+     aliases: ["Apple M1", {pattern: "M1 (Pro|Max|Ultra)", gate: apple}, {pattern: "M1", gate: apple}]}
+  - {id: apple-m2, display: "Apple M2", manufacturer: apple, family: m-series,
+     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2022-06,
+     aliases: ["Apple M2", {pattern: "M2 (Pro|Max|Ultra)", gate: apple}, {pattern: "M2", gate: apple}]}
+  - {id: apple-m3, display: "Apple M3", manufacturer: apple, family: m-series,
+     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2023-10,
+     aliases: ["Apple M3", {pattern: "M3 (Pro|Max|Ultra)", gate: apple}, {pattern: "M3", gate: apple}]}
+  - {id: apple-m4, display: "Apple M4", manufacturer: apple, family: m-series,
+     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2024-05,
+     aliases: ["Apple M4", {pattern: "M4 (Pro|Max|Ultra)", gate: apple}, {pattern: "M4", gate: apple}]}
+  - {id: nvidia-jetson-tk1, display: "NVIDIA Jetson TK1", manufacturer: nvidia, family: jetson,
+     architecture: kepler, subtype: mobile-gpu, segment: embedded, release: 2014-04,
+     aliases: ["Jetson TK1"]}
+  - {id: nvidia-jetson-tx1, display: "NVIDIA Jetson TX1", manufacturer: nvidia, family: jetson,
+     architecture: maxwell, subtype: mobile-gpu, segment: embedded, release: 2015-11,
+     aliases: ["Jetson TX1", {pattern: "TX1", gate: gpu}, "Tegra X1"]}
+  - {id: nvidia-jetson-tx2, display: "NVIDIA Jetson TX2", manufacturer: nvidia, family: jetson,
+     architecture: pascal, subtype: mobile-gpu, segment: embedded, release: 2017-03,
+     aliases: ["Jetson TX2", {pattern: "TX2", gate: gpu}]}
+  - {id: nvidia-jetson-xavier, display: "NVIDIA Jetson AGX Xavier", manufacturer: nvidia, family: jetson,
+     architecture: volta, subtype: mobile-gpu, segment: embedded, release: 2018-12,
+     aliases: ["Jetson Xavier", "AGX Xavier", "Xavier NX"]}
+  - {id: nvidia-jetson-nano, display: "NVIDIA Jetson Nano", manufacturer: nvidia, family: jetson,
+     architecture: maxwell, subtype: mobile-gpu, segment: embedded, release: 2019-03,
+     aliases: ["Jetson Nano"]}
+  - {id: nvidia-jetson-orin, display: "NVIDIA Jetson AGX Orin", manufacturer: nvidia, family: jetson,
+     architecture: ampere, subtype: mobile-gpu, segment: embedded, release: 2022-03,
+     aliases: ["Jetson Orin", "AGX Orin", "Orin Nano"]}
+  - {id: intel-xeon-phi, display: "Intel Xeon Phi", manufacturer: intel, family: xeon-phi,
+     architecture: mic, subtype: manycore, segment: datacenter, release: 2012-11,
+     aliases: ["Xeon Phi", "Knights Landing", "Knights Corner", {pattern: "KNL", gate: gpu}]}
+  - {id: intel-gaudi, display: "Intel/Habana Gaudi", manufacturer: intel, family: gaudi,
+     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2019-06,
+     aliases: ["Habana Gaudi", {pattern: "Gaudi", case: sensitive, gate: gpu}]}
+  - {id: intel-gaudi2, display: "Intel Gaudi 2", manufacturer: intel, family: gaudi,
+     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2022-05,
+     aliases: ["Gaudi 2"]}
+  - {id: intel-gaudi3, display: "Intel Gaudi 3", manufacturer: intel, family: gaudi,
+     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2024-04,
+     aliases: ["Gaudi 3"]}
+  - {id: intel-arc-a770, display: "Intel Arc A770", manufacturer: intel, family: arc,
+     architecture: xe, subtype: consumer-gpu, segment: consumer, release: 2022-10,
+     aliases: ["Arc A770", "Intel Arc"]}
+  - {id: intel-max-gpu, display: "Intel Data Center GPU Max (Ponte Vecchio)", manufacturer: intel,
+     family: max, architecture: xe, subtype: datacenter-gpu, segment: datacenter, release: 2023-01,
+     aliases: ["Ponte Vecchio", "GPU Max 1550", "GPU Max 1100", "Data Center GPU Max"]}
+  - {id: cerebras-wse, display: "Cerebras WSE-1", manufacturer: cerebras, family: wse,
+     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2019-08,
+     aliases: ["Cerebras WSE", "WSE-1", {pattern: "CS-1", gate: gpu}, "wafer scale engine"]}
+  - {id: cerebras-wse2, display: "Cerebras WSE-2", manufacturer: cerebras, family: wse,
+     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2021-04,
+     aliases: ["WSE-2", {pattern: "CS-2", gate: gpu}]}
+  - {id: cerebras-wse3, display: "Cerebras WSE-3", manufacturer: cerebras, family: wse,
+     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2024-03,
+     aliases: ["WSE-3", {pattern: "CS-3", gate: gpu}]}
+  - {id: graphcore-ipu, display: "Graphcore IPU", manufacturer: graphcore, family: ipu,
+     architecture: ipu, subtype: npu-asic, segment: datacenter, release: 2018-11,
+     aliases: ["Graphcore IPU", "Graphcore", {pattern: "IPU", gate: gpu}, "GC200", "Bow IPU"]}
+  - {id: huawei-ascend-310, display: "Huawei Ascend 310", manufacturer: huawei, family: ascend,
+     architecture: davinci, subtype: npu-asic, segment: datacenter, release: 2018-10,
+     aliases: ["Ascend 310"]}
+  - {id: huawei-ascend-910, display: "Huawei Ascend 910", manufacturer: huawei, family: ascend,
+     architecture: davinci, subtype: npu-asic, segment: datacenter, release: 2019-08,
+     aliases: ["Ascend 910"]}
+  - {id: aws-trainium, display: "AWS Trainium", manufacturer: amazon, family: trainium,
+     architecture: trainium, subtype: npu-asic, segment: cloud, release: 2022-10,
+     aliases: ["Trainium", {pattern: "Trn1", gate: gpu}]}
+  - {id: aws-inferentia, display: "AWS Inferentia", manufacturer: amazon, family: inferentia,
+     architecture: inferentia, subtype: npu-asic, segment: cloud, release: 2019-12,
+     aliases: ["Inferentia", {pattern: "Inf[12]", gate: gpu}]}
