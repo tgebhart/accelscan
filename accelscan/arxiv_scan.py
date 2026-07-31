@@ -26,7 +26,9 @@ rate so a stall shows up in the log and not only in an S3 listing.
 """
 
 import argparse
+import faulthandler
 import io
+import signal
 import sys
 import time
 from concurrent.futures import (BrokenExecutor, CancelledError, ProcessPoolExecutor,
@@ -74,27 +76,52 @@ def _ingest_row(shard_id: str, paper_id: str | None, arxiv_id: str | None,
     }
 
 
-def scan_tar_stream(tf, entry: TarEntry, reg) -> tuple[pl.DataFrame, pl.DataFrame,
-                                                      pl.DataFrame]:
+STAGES = ('net', 'unpack', 'tex', 'match', 'put')
+
+
+def scan_tar_stream(tf, entry: TarEntry, reg, timings: dict | None = None
+                    ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """One open tar stream -> (inventory, candidates, ingest_stats).
 
     Members are consumed strictly in order: the stream cannot go back.
+
+    `timings` is filled in place with seconds per stage rather than returned, so the
+    signature stays three-valued. The split matters: a tar that is slow in `net` is
+    a bandwidth or endpoint problem, one slow in `tex` is a converter problem, and
+    without the breakdown the two are indistinguishable in the log.
     """
+    t = timings if timings is not None else {}
+    for stage in STAGES:
+        t.setdefault(stage, 0.0)
     scans, ingest = [], []
-    for name, data in iter_members(tf):
+    members = iter_members(tf)
+    while True:
+        c0 = time.perf_counter()
+        try:                                   # next() is where the stream is read
+            name, data = next(members)
+        except StopIteration:
+            t['net'] += time.perf_counter() - c0
+            break
+        t['net'] += time.perf_counter() - c0
         arxiv_id = arxiv_id_from_member(name)
         if arxiv_id is None:
             ingest.append(_ingest_row(entry.shard_id, None, None, 'unknown_id', {}))
             continue
         paper_id = paper_id_from_arxiv_id(arxiv_id)
+        c1 = time.perf_counter()
         files, skip = unpack_member(name, data)
+        t['unpack'] += time.perf_counter() - c1
         if skip:
             ingest.append(_ingest_row(entry.shard_id, paper_id, arxiv_id, skip, {}))
             continue
+        c2 = time.perf_counter()
         paras, stats = latex_to_paragraphs(files)
+        c3 = time.perf_counter()
         scans.append(scan_paragraphs(
             paras, reg, paper_id=paper_id, corpusid=None,
             shard_id=entry.shard_id, body_chars=stats.get('plain_chars') or 0))
+        t['tex'] += c3 - c2
+        t['match'] += time.perf_counter() - c3
         ingest.append(_ingest_row(entry.shard_id, paper_id, arxiv_id,
                                   '' if paras else 'no_tex', stats))
 
@@ -104,28 +131,67 @@ def scan_tar_stream(tf, entry: TarEntry, reg) -> tuple[pl.DataFrame, pl.DataFram
     return inv, cand, stats_df
 
 
-def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False) -> str:
-    """Worker: stream one tar, scan it, upload outputs + `.done` marker."""
-    from accelscan.s3 import make_s3_client
-    reg = load_registry()
-    if reg.version != registry_version:
-        raise RuntimeError(f'registry {reg.version} != requested {registry_version}')
+_WORKER: dict = {}
 
-    msi = make_s3_client()                     # outputs land on MSI
-    aws = arxiv_client()                       # source is requester-pays AWS
+
+def _worker_state(registry_version: str) -> dict:
+    """Per-process registry + S3 clients, built once. Also arms the debug handlers.
+
+    `load_registry` is not memoized and costs ~1.1 s, and each boto3 client reparses
+    a service model, so the old code spent ~1.6 s of setup on *every* tar -- which
+    dominates entirely for the thousands of small pre-2005 tars.
+
+    `SIGUSR1` dumps every thread's traceback (`kill -USR1 <pid>`), which is how a
+    hung worker gets diagnosed without installing py-spy on the box. faulthandler
+    writes from C, so it reports even when the worker is blocked inside `ssl.read`
+    or a runaway regex, where a Python-level signal handler would never run.
+    """
+    if not _WORKER:
+        from accelscan.s3 import make_s3_client
+        reg = load_registry()
+        if reg.version != registry_version:
+            raise RuntimeError(f'registry {reg.version} != requested {registry_version}')
+        faulthandler.enable()
+        if hasattr(signal, 'SIGUSR1'):
+            faulthandler.register(signal.SIGUSR1, chain=True)
+        _WORKER.update(reg=reg, msi=make_s3_client(), aws=arxiv_client())
+    return _WORKER
+
+
+def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False,
+                watchdog_secs: int = 300) -> str:
+    """Worker: stream one tar, scan it, upload outputs + `.done` marker.
+
+    A tar that outlives `watchdog_secs` dumps its traceback to the log and keeps
+    going (`repeat=True`), so a hang names its own line instead of showing up as an
+    absence of markers in an S3 listing an hour later. The watchdog runs in its own
+    thread and therefore fires even while the main thread is blocked in C.
+    """
+    st = _worker_state(registry_version)
+    msi, aws, reg = st['msi'], st['aws'], st['reg']
+    timings: dict = {}
     t0 = time.time()
-    with open_tar(aws, entry) as tf:
-        inv, cand, stats_df = scan_tar_stream(tf, entry, reg)
+    if watchdog_secs:
+        faulthandler.dump_traceback_later(watchdog_secs, repeat=True, exit=False)
+    try:
+        with open_tar(aws, entry) as tf:
+            inv, cand, stats_df = scan_tar_stream(tf, entry, reg, timings)
 
-    write_shard_outputs(msi, entry.shard_id, registry_version, inv, cand, ARXIV,
-                        done_body=entry.md5sum.encode())
-    buf = io.BytesIO()
-    stats_df.write_parquet(buf)
-    msi.put_object(Bucket=BUCKET, Key=ingest_stats_key(entry.shard_id),
-                   Body=buf.getvalue())
+        tp = time.perf_counter()
+        write_shard_outputs(msi, entry.shard_id, registry_version, inv, cand, ARXIV,
+                            done_body=entry.md5sum.encode())
+        buf = io.BytesIO()
+        stats_df.write_parquet(buf)
+        msi.put_object(Bucket=BUCKET, Key=ingest_stats_key(entry.shard_id),
+                       Body=buf.getvalue())
+        timings['put'] = time.perf_counter() - tp
+    finally:
+        faulthandler.cancel_dump_traceback_later()
+
     skipped = int(stats_df.filter(pl.col('skip_reason') != '').height) if stats_df.height else 0
+    stages = ' '.join(f'{s} {timings.get(s, 0):.0f}' for s in STAGES)
     return (f'{entry.shard_id}: {inv.height} papers, {cand.height} passages, '
-            f'{skipped} skipped, {time.time() - t0:.0f}s')
+            f'{skipped} skipped, {time.time() - t0:.0f}s [{stages}]')
 
 
 def _todo(entries: list[TarEntry], registry_version: str, client,
@@ -151,7 +217,8 @@ def _todo(entries: list[TarEntry], registry_version: str, client,
 
 
 def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
-             verify_md5: bool = False, max_rounds: int = 6) -> tuple[int, int]:
+             verify_md5: bool = False, max_rounds: int = 6,
+             watchdog_secs: int = 300) -> tuple[int, int]:
     """Scan `todo` in a process pool, rebuilding the pool if it breaks. -> (ok, failed).
 
     A per-tar exception is logged and skipped -- one lost tar out of thousands is
@@ -178,8 +245,8 @@ def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
                   f'with {workers} workers', file=sys.stderr)
         retry, broke = [], False
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            futures = {ex.submit(process_tar, e, registry_version, verify_md5): e
-                       for e in pending}
+            futures = {ex.submit(process_tar, e, registry_version, verify_md5,
+                                 watchdog_secs): e for e in pending}
             for fut in as_completed(futures):
                 entry = futures[fut]
                 try:
@@ -232,6 +299,8 @@ def main() -> None:
     ap.add_argument('--yes-i-know', action='store_true',
                     help='proceed outside us-east-1 despite the egress cost')
     ap.add_argument('--manifest-cache', default=MANIFEST_CACHE)
+    ap.add_argument('--watchdog-secs', type=int, default=300,
+                    help='dump a stuck tar\'s traceback after this long (0 disables)')
     args = ap.parse_args()
 
     reg = load_registry()
@@ -266,7 +335,8 @@ def main() -> None:
     if not in_arxiv_region() and not args.yes_i_know:
         ap.error('refusing to pay egress outside us-east-1; pass --yes-i-know to override')
 
-    ok, failed = run_pool(todo, reg.version, args.max_workers, args.verify_md5)
+    ok, failed = run_pool(todo, reg.version, args.max_workers, args.verify_md5,
+                          watchdog_secs=args.watchdog_secs)
     print(f'{ok} tars scanned, {failed} failed', file=sys.stderr)
     if failed:
         raise SystemExit(1)

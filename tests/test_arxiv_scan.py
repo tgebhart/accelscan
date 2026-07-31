@@ -218,3 +218,18 @@ def test_pace_reports_a_rate_and_eta():
     from accelscan.arxiv_scan import _pace
     out = _pace(60, 600, time.time() - 60)            # 60 tars in one minute
     assert 'tars/min' in out and 'eta' in out
+
+
+def test_stage_timings_are_filled_in_place(reg, entry):
+    """The breakdown is what tells a bandwidth stall apart from a converter stall."""
+    from accelscan.arxiv_scan import STAGES
+    payload = _tar({'2301/2301.00001.gz': _paper(
+        f'Training ran on 4 NVIDIA V100 GPUs for a week. {FILLER}')})
+    timings: dict = {}
+    with open_stream(NonSeekable(payload)) as tf:
+        inv, cand, stats = scan_tar_stream(tf, entry, reg, timings)
+    assert inv.height == 1
+    assert set(timings) == set(STAGES)
+    assert timings['put'] == 0.0                      # process_tar fills that one
+    assert all(v >= 0 for v in timings.values())
+    assert timings['tex'] > 0 and timings['match'] > 0
