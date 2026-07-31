@@ -10,6 +10,10 @@ dependencies = [
     "tenacity>=8.2",
     "pyahocorasick>=2.1",
     "pyyaml>=6.0",
+    # LaTeX parsing for the arXiv corpus. Pure Python, no binary, and lenient by
+    # design: it never rejects a document, which pandoc does on exactly the broken
+    # source that predominates in early arXiv years.
+    "pylatexenc>=2.10,<3",
     "pydantic>=2.6",
     "tqdm>=4.66",
     "matplotlib>=3.8",

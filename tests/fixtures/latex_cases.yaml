@@ -174,14 +174,19 @@ cases:
     contains: ['NVIDIA V100']
     absent: ['K80', 'B. Author']
 
-  - name: href-keeps-text-url-keeps-domain
+  - name: href-keeps-text-and-url
+    # pylatexenc renders \href{u}{t} as "t <u>" and \url{u} as "<u>". Both URLs are
+    # kept deliberately: vendor domains are signal (the CUDA lock-in proxy in
+    # notebooks/manufacturer.ipynb counts cuda/nvidia mentions), and the old parser's
+    # policy of discarding the href target was a loss, not a feature.
+    # `\href` also needs std_macro('href','{{') in the parse context or pylatexenc
+    # raises IndexError and the whole paper is dropped -- that is what this pins.
     tex: |
       \begin{document}
       See \href{https://example.com/page}{the vendor page} for the full listing,
       and \url{https://developer.nvidia.com/cuda} for the toolkit documentation.
       \end{document}
-    contains: ['the vendor page', 'developer.nvidia.com/cuda']
-    absent: ['example.com']
+    contains: ['the vendor page', 'developer.nvidia.com/cuda', 'example.com/page']
 
   - name: accent-macros-do-not-eat-control-words
     # Regression: brace-optional letter accents turned \cite{} into 'ite{}'.
@@ -190,7 +195,9 @@ cases:
       Following Erd\H{o}s and Ren\'{e} \cite{smith2020} we \ref{eq:1} evaluate the
       method on one NVIDIA A100 GPU, see also \usepackage-era legacy sources here.
       \end{document}
-    contains: ['NVIDIA A100', 'Erdos', 'Rene']
+    # pylatexenc resolves accents to real unicode (Erdős, not the old ASCII Erdos),
+    # which is strictly better and irrelevant to matching: hardware names are ASCII.
+    contains: ['NVIDIA A100', 'Erdős', 'René']
     absent: ['ite{smith2020}', 'ef{eq:1}', 'sepackage']
 
   - name: latin1-bytes-decode

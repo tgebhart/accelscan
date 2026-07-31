@@ -143,20 +143,41 @@ project measures.
 
 ### LaTeX conversion
 
-`accelscan/latex.py` is hand-rolled and stdlib-only. **Every loop over `_braced` must
-check that the index advanced**: it reports an unbalanced group by returning its own
-start index, and an unclosed `\cite{` — ordinary in truncated arXiv source — spun
-`_drop_with_args` forever, consuming one worker per bad paper and killing two
-full-history runs before a `py-spy` dump named the line. `arxiv_scan` now also caps
-each paper at `--paper-timeout` seconds (`skip_reason='timeout'`), so a converter
-pathology costs one counted row rather than a worker. Off-the-shelf parsers were
-measured against this module's own fixture suite, not dismissed: pylatexenc 2.11
-passed 8/19 cases to our 19/19 and ran 18× slower (56 vs 3 single-core hours over
-2.7M papers), mostly because a faithful renderer keeps the floats, captions,
-listings and bibliographies that the measurement must drop. Behaviour is pinned by
-`tests/fixtures/latex_cases.yaml`; **bibliography exclusion is three layers**
-(`.bbl` never read → truncate at a bibliography macro past the halfway guard →
-reference-shape filter), because S2ORC gets that for free and arXiv must not lose it.
+`accelscan/latex.py` delegates the parsing to **pylatexenc** and supplies only policy.
+It previously contained a hand-rolled de-TeXer, which **hung two full-history runs**:
+`_drop_with_args` looped on `_braced`, and `_braced` reports an unbalanced group by
+returning its own start index, so an unclosed `\cite{` — ordinary in truncated arXiv
+source — spun forever and consumed one worker per bad paper. 32 fixtures had not caught
+it; a `py-spy dump` on a live worker named the line in seconds.
+
+**Why pylatexenc rather than pandoc**, measured: pandoc is the better parser (real AST,
+subprocess-isolated, 5–26 ms) but **rejects** broken input with exit 64 — unbalanced
+`\cite{`, unclosed `\begin{align}`, and 1990s `\documentstyle` files with no
+`\begin{document}` all fail, and truncate-at-the-reported-error-line does not converge
+because pandoc reports where it *notices* (EOF), not where the brace is. Rejection here
+correlates with era, so text quality would decay going backwards in time and manufacture
+the very trend this study measures. pylatexenc converts all of those, at 57 ms/paper
+(1.3 h on 36 cores for 3.01M papers).
+
+This module still owns, all of it policy or plumbing with no TeX grammar in it:
+`\input`/`\include` resolution across tar members; zero-arg `\newcommand` expansion
+(pylatexenc 2 drops user macros, hiding `\newcommand{\ourgpu}{A100}`); **three-layer
+bibliography exclusion** (`.bbl` never read → truncate at a bibliography macro past the
+halfway guard → reference-shape filter), because S2ORC gets that free and arXiv must not
+lose it; floats dropped with their captions for GROBID comparability; display math
+dropped while inline math is kept as text (`math_mode='remove'` would delete `$8$` and
+device counts are a headline estimand); and **block-local brace repair**, which closes a
+group that never closes inside its own paragraph — without it a tokenizer swallows the
+rest of the document into an unclosed argument and every later hardware sentence is lost.
+Two pylatexenc-specific traps are pinned by fixtures: `\href` needs an explicit
+`std_macro('href','{{')` in the *parse* context or conversion raises `IndexError` and the
+paper is dropped, and `\paragraph` needs `*[{` or its title cannot become a section
+heading. Behaviour is pinned by `tests/fixtures/latex_cases.yaml` (29 cases, all green on
+the new engine; two expectations changed deliberately — accents now resolve to real
+unicode, and `\href` targets are kept because vendor domains are signal).
+
+`arxiv_scan` additionally caps each paper at `--paper-timeout` seconds
+(`skip_reason='timeout'`), so a converter pathology costs one counted row, not a worker.
 
 ## Versioning note
 

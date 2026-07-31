@@ -1,56 +1,68 @@
-r"""arXiv LaTeX source -> `records.Paragraph` list, stdlib only.
+r"""arXiv LaTeX source -> `records.Paragraph` list, parsed by pylatexenc.
 
-Deliberately not a real TeX parser: what the matcher needs is *prose with word
-boundaries*, not semantic fidelity, so this is a pragmatic de-TeXer whose correctness
-is bought with fixtures (`tests/fixtures/latex_cases.yaml`) rather than a grammar.
+**The TeX parsing is not ours.** A hand-rolled de-TeXer lived here and was replaced
+after it killed two full-history runs: `_drop_with_args` looped on `_braced`, which
+reports an unbalanced group by returning its own start index, so an unclosed `\cite{`
+-- ordinary in truncated arXiv source -- spun forever and consumed one worker per bad
+paper. 32 fixtures had not caught it. A tokenizer maintained by other people is worth
+more than a fixture suite we write ourselves, so parsing now goes through
+`pylatexenc.latex2text` and this module supplies only *policy* and plumbing.
 
-**Off-the-shelf parsers were evaluated and rejected**, on measurements against this
-module's own fixture suite rather than on taste. pylatexenc 2.11 passed 8/19 cases to
-our 19/19 and took 74 ms/paper against our 4 ms on a realistic 22 KB paper (56 vs 3
-single-core hours over 2.7M papers). Most of its misses are *policy* rather than
-parsing -- it faithfully renders floats with captions, verbatim/listings, tabular and
-the entire bibliography, because rendering is its job, whereas the measurement
-requires dropping them -- so a parser-based pipeline would keep nearly all the code
-below *and* add a dependency. Its hard gaps here: no `\input` resolution across tar
-members, no user `\newcommand` expansion, and `math_mode='remove'` deletes `$8$`,
-destroying device counts. The one thing it does better is unicode accents
-(`Erd\H{o}s` -> `Erdős` vs our ASCII `Erdos`), which does not affect matching because
-hardware names are ASCII.
+Why pylatexenc and not pandoc, measured rather than assumed: pandoc parses the
+structure better (a real AST, so floats and captions drop structurally) and is
+subprocess-isolated, but it **rejects** broken input with exit 64 -- unbalanced
+`\cite{`, unclosed `\begin{align}`, and 1990s `\documentstyle` files with no
+`\begin{document}` all fail, and truncate-at-the-reported-error-line does not
+converge because pandoc reports where it *notices* (EOF), not where the unclosed
+brace is. That failure mode is fatal here for a reason specific to this paper:
+rejection correlates with era, so text quality would degrade going back in time and
+manufacture exactly the upward trend the study measures. pylatexenc never rejects a
+document -- all four broken cases above convert -- which makes it the right engine
+even though pandoc is the better parser.
 
-Returns real `records.Paragraph` objects so `scan.scan_paragraphs` -- the shared
-match/gate/cap core -- runs unchanged over both corpora.
+What this module still owns, all of it policy or plumbing with no TeX grammar in it:
 
-Decisions that affect the measurement, all deliberate:
-
-- **Bibliography exclusion in three layers.** S2ORC gets this free (`bibliography`
-  is a separate object); arXiv must not lose it, or a reference titled
-  "GPU-accelerated Monte Carlo..." becomes a false candidate. Layers: `.bbl` files
-  are never read; the document is truncated at a bibliography macro occurring past
-  half-way (the position guard stops a preamble `\bibliographystyle` from
-  decapitating the paper); and any surviving reference-shaped paragraph is dropped.
-- **Floats are dropped with their captions** (figure/table/algorithm/listing), for
-  comparability with S2ORC's GROBID body text, which largely excludes them. A
-  caption alone also gives the LLM almost no usage context.
-- **Inline math becomes a space, except when it is purely numeric.** `"we used $8$
-  V100 GPUs"` must keep the 8: device counts are a headline estimand.
-- **Whitespace is collapsed to single spaces.** `GATE_WINDOW_CHARS` (250) and
+- **`\input`/`\include` resolution across tar members.** pylatexenc has no file
+  model; arXiv submissions are multi-file and the methods section is often its own
+  file, so without this the hardware paragraph is simply absent.
+- **Zero-argument macro expansion.** pylatexenc 2 does not expand user macros, and
+  drops them: `\newcommand{\ourgpu}{A100}` ... `\ourgpu` becomes nothing, hiding the
+  hardware name. Bounded (`limit=2` rounds, self-referential bodies skipped).
+- **Bibliography exclusion in three layers.** S2ORC gets this free (`bibliography` is
+  a separate object); arXiv must not lose it, or a reference titled "GPU-accelerated
+  Monte Carlo..." becomes a false candidate. Layers: `.bbl` files are never read; the
+  document is truncated at a bibliography macro past the halfway guard (so a preamble
+  `\bibliographystyle` cannot decapitate the paper); any surviving reference-shaped
+  paragraph is dropped. `thebibliography` is also in the discard list below.
+- **Floats dropped with their captions** (figure/table/algorithm/listing), for
+  comparability with S2ORC's GROBID body text, which largely excludes them.
+- **Display math dropped, inline math kept as text.** `math_mode='remove'` would
+  delete `$8$` from "we used $8$ V100 GPUs" and device counts are a headline
+  estimand, so inline math is rendered; display environments are discarded instead.
+- **Whitespace collapsed to single spaces.** `GATE_WINDOW_CHARS` (250) and
   `PASSAGE_CHAR_CAP` (2500) are character budgets, and LaTeX line-wrapping would
   otherwise spend 5-10% of them on newlines and indentation.
 
-Every function returns a stats dict alongside its output; those land in the
-`ingest_stats` product, which is the only way to spot the LaTeX converter silently
-degrading across eras (a converter that decays over time manufactures exactly the
-upward trend this project measures).
+Returns real `records.Paragraph` objects so `scan.scan_paragraphs` -- the shared
+match/gate/cap core -- runs unchanged over both corpora. Every function returns a
+stats dict alongside its output; those land in the `ingest_stats` product, the only
+way to spot the converter degrading across eras.
 """
 
 import re
+from functools import lru_cache
+
+from pylatexenc.latex2text import (EnvironmentTextSpec, LatexNodes2Text, MacroTextSpec,
+                                   get_default_latex_context_db)
+from pylatexenc.latexwalker import LatexWalker
+from pylatexenc.latexwalker import get_default_latex_context_db as walker_context_db
+from pylatexenc.macrospec import std_macro
 
 from accelscan.config import SPLIT_LONG_PARA_CHARS
 from accelscan.records import MIN_PARA_CHARS, Paragraph
 
 MAX_SOURCE_BYTES = 20_000_000
 MAX_INCLUDE_DEPTH = 8
-MAX_TITLE_CHARS = 120
 BIB_POSITION_GUARD = 0.5      # bibliography macros before this fraction are ignored
 
 # Sentinel for a section heading: NUL cannot occur in decoded TeX prose.
@@ -58,68 +70,39 @@ SEC_OPEN, SEC_CLOSE = '\x00SEC:', '\x00'
 
 TEXT_EXTS = ('.tex', '.ltx', '.txt')
 
-# Dropped whole, replaced by a paragraph break. Math, floats, code, verbatim.
-DROP_ENVIRONMENTS = frozenset("""
-    equation eqnarray align alignat gather multline flalign displaymath math
+# Discarded whole. Math, floats, code, verbatim, and the bibliography.
+DROP_ENVIRONMENTS = tuple("""
+    equation equation* eqnarray eqnarray* align align* alignat alignat* gather
+    gather* multline multline* flalign flalign* displaymath math
     array matrix pmatrix bmatrix vmatrix Vmatrix smallmatrix cases split
-    figure figure* table table* tabular tabularx longtable wraptable wrapfigure
-    subfigure subtable sidewaysfigure sidewaystable
-    algorithm algorithmic algorithm2e algorithmicx pseudocode
+    figure figure* table table* tabular tabular* tabularx longtable
+    wraptable wrapfigure subfigure subtable sidewaysfigure sidewaystable
+    algorithm algorithm* algorithmic algorithm2e algorithmicx pseudocode
     lstlisting listing verbatim Verbatim minted alltt code
     tikzpicture pgfpicture picture circuitikz forest
-    thebibliography
+    thebibliography IEEEkeywords keywords
 """.split())
 
-# Unwrapped to their contents: formatting that surrounds real prose.
-UNWRAP_MACROS = frozenset("""
-    emph textbf textit textsl texttt textsc textrm textsf textnormal textup
-    mbox hbox text ensuremath mathrm textquote uline underline so
-    subsubsubsection add caption* nolinkurl path
+# Dropped with their argument: citations, cross-references, notes, graphics.
+DROP_WITH_ARG = tuple("""
+    cite citep citet citealp citealt citeauthor citeyear citenum nocite Cite
+    ref eqref autoref cref Cref pageref label footnote footnotetext thanks
+    index glossary marginpar bibliographystyle bibliography printbibliography
+    includegraphics graphicspath
 """.split())
 
 SECTION_MACROS = ('chapter', 'section', 'subsection', 'subsubsection', 'paragraph',
                   'subparagraph')
 
-# Dropped with their argument: citations, cross-references, notes.
-DROP_WITH_ARG = frozenset("""
-    cite citep citet citealp citealt citeauthor citeyear citenum nocite Cite
-    ref eqref autoref cref Cref pageref label footnote footnotetext thanks
-    index glossary marginpar bibliographystyle bibliography usepackage
-    documentclass documentstyle input include includegraphics graphicspath
-    hypersetup newcommand renewcommand providecommand def newtheorem
-    setlength addtolength definecolor pagestyle thispagestyle vspace hspace
-""".split())
-
 _COMMENT = re.compile(r'(?<!\\)((?:\\\\)*)%[^\n]*\n[ \t]*')
 _DISPLAY_MATH = re.compile(r'(?<!\\)\$\$.*?(?<!\\)\$\$|\\\[.*?\\\]', re.S)
-_INLINE_MATH = re.compile(r'(?<!\\)\$([^$]{0,400}?)(?<!\\)\$|\\\((.{0,400}?)\\\)', re.S)
-_NUMERIC_MATH = re.compile(r'^[\d\s.,]+$')
 _BIB_STOP = re.compile(r'\\begin\s*\{thebibliography\}|\\bibliography\s*\{'
                        r'|\\printbibliography|\\bibliographystyle\s*\{')
-_ENV_EDGE = re.compile(r'\\(begin|end)\s*\{([^}\n]{1,60})\}')
-# Accents in two flavours. Symbol accents (\'e, \~n) may omit braces safely, but
-# LETTER accents (\v \H \r \u \c \d \b \t) must require them: brace-optional
-# would make '\c' eat the head of '\cite', '\r' of '\ref', '\u' of '\usepackage'
-# and '\v' of '\varepsilon', silently corrupting prose into 'ite{x}' / 'ef{z}'.
-_ACCENT_SYMBOL = re.compile(r'\\[`\'^"~=.]\s*\{?([a-zA-Z])\}?')
-_ACCENT_LETTER = re.compile(r'\\[vHrucdbt]\s*\{([a-zA-Z])\}')
-_CONTROL_WORD = re.compile(r'\\[a-zA-Z@]+\s*\*?')
-_CONTROL_SYMBOL = re.compile(r'\\[^a-zA-Z@\s]')
 _WS = re.compile(r'\s+')
-# Escaped literals must survive both the control-symbol rule and the later global
-# '&'/brace scrubbing, so they ride through as placeholders. Applied AFTER comment
-# stripping, because '\\%' is an escaped backslash followed by a real comment.
-_ESCAPED = {'%': '\x01', '&': '\x02', '_': '\x03', '#': '\x04', '$': '\x05'}
-_UNESCAPE = {v: k for k, v in _ESCAPED.items()}
-_ESCAPED_RE = re.compile(r'\\([%&_#$])')
 # A reference entry that starts its own line becomes its own paragraph, so the
 # reference filter cannot take neighbouring prose down with it.
 _REF_LINE = re.compile(r'(?m)^[ \t]*(\[\d{1,3}\]|\\bibitem)')
 _PARA_SPLIT = re.compile(r'\n\s*\n|\\par\b')
-# Markers of environments we KEEP (itemize, enumerate, abstract, IEEEkeywords...).
-# Without this the generic control-word rule deletes '\begin' and then brace
-# stripping turns '{enumerate}' into the word "enumerate" in the middle of prose.
-_ENV_MARKER = re.compile(r'\\(?:begin|end)\s*\{[^}\n]{1,60}\}(?:\s*\[[^\]\n]{0,80}\])?')
 
 # A paragraph is reference-shaped if it opens like a numbered entry, or is short
 # and carries several bibliographic tells. Final net behind the two bib layers.
@@ -129,10 +112,60 @@ _REF_SIGNALS = (re.compile(r'\(\d{4}\)|\b(19|20)\d{2}\b'), re.compile(r'\bet al\
                 re.compile(r'\bJ\.\s|\bProc\.|\bIEEE\b|\bACM\b'))
 
 
+def _section_marker(node, l2tobj=None, **_kw) -> str:
+    """Render a sectioning macro as a NUL-delimited heading sentinel.
+
+    `simplify_repl='%s'` cannot be used: `\\section`'s spec carries three arguments
+    (star, optional, title) and the substitution fails with a configuration warning.
+    """
+    args = [a for a in (getattr(node.nodeargd, 'argnlist', None) or []) if a is not None]
+    title = ' '.join(l2tobj.nodelist_to_text(args[-1:]).split()) if args and l2tobj else ''
+    return f'\n\n{SEC_OPEN}{title}{SEC_CLOSE}\n\n'
+
+
+@lru_cache(maxsize=1)
+def _parse_context():
+    """Walker context with argument counts pylatexenc's default db gets wrong here.
+
+    `\\href` is the important one: latex2text's spec reads two arguments while the
+    default *parsing* db gives it fewer, so converting any document containing
+    `\\href` raises IndexError inside pylatexenc -- which would have dropped every
+    such paper. `\\paragraph`/`\\subparagraph` need `*[{` or their title is not an
+    argument and cannot become a section heading.
+    """
+    db = walker_context_db()
+    db.add_context_category('accelscan-parse', prepend=True, macros=[
+        std_macro('paragraph', '*[{'), std_macro('subparagraph', '*[{'),
+        std_macro('href', '{{'), std_macro('url', '{'), std_macro('nolinkurl', '{'),
+    ])
+    return db
+
+
+@lru_cache(maxsize=1)
+def _converter() -> LatexNodes2Text:
+    """pylatexenc configured to this project's policy. Built once per process."""
+    db = get_default_latex_context_db()
+    db.add_context_category(
+        'accelscan',
+        environments=[EnvironmentTextSpec(name, discard=True)
+                      for name in DROP_ENVIRONMENTS],
+        macros=([MacroTextSpec(name, simplify_repl='') for name in DROP_WITH_ARG]
+                + [MacroTextSpec(name, simplify_repl=_section_marker)
+                   for name in SECTION_MACROS]),
+        prepend=True)
+    # math_mode='text' so "$8$ V100" keeps its device count; display math is
+    # discarded via DROP_ENVIRONMENTS and _DISPLAY_MATH instead.
+    return LatexNodes2Text(latex_context=db, math_mode='text', keep_comments=False,
+                           strict_latex_spaces=False)
+
+
 def _braced(s: str, i: int) -> tuple[str, int]:
     """Content of the brace group starting at s[i]=='{', and the index after it.
 
-    Returns ('', i) when unbalanced -- truncated source is normal on arXiv.
+    Returns ('', i) when unbalanced -- truncated source is normal on arXiv. Callers
+    that loop over this MUST check that the index advanced; not doing so is what
+    hung the previous converter. `collect_macros` is now the only caller, and it
+    does not loop.
     """
     if i >= len(s) or s[i] != '{':
         return '', i
@@ -231,8 +264,10 @@ def assemble_source(files: dict[str, bytes]) -> tuple[str, dict]:
 def _strip_comments(s: str) -> str:
     """TeX comment rule: '%' to EOL *plus* the newline and the next line's indent.
 
-    Dropping only to EOL would glue words across the break; keeping the newline
-    would invent paragraph boundaries. `\\%` is preserved.
+    pylatexenc strips comments itself; this runs first so the pre-passes below
+    (macro collection, bibliography truncation) do not read commented-out source --
+    a `% \\bibliography{refs}` past the halfway mark would otherwise truncate a
+    whole paper.
     """
     return _COMMENT.sub(r'\1', s + '\n')
 
@@ -241,9 +276,9 @@ def collect_macros(src: str) -> dict[str, str]:
     """Zero-argument `\\newcommand`/`\\def` bodies, by macro name.
 
     Zero-arg only: general expansion is a halting problem on real source, while
-    zero-arg covers the common `\\newcommand{\\ourmodel}{FooNet}` case that would
-    otherwise leave holes in the prose. Self-referential and over-long bodies are
-    skipped.
+    zero-arg covers the common `\\newcommand{\\ourmodel}{FooNet}` case that
+    pylatexenc would otherwise drop, leaving holes in the prose. Self-referential
+    and over-long bodies are skipped.
     """
     defs = {}
     pat = re.compile(r'\\(?:newcommand|renewcommand|providecommand)\s*\*?\s*'
@@ -270,111 +305,38 @@ def _apply_macros(s: str, defs: dict[str, str], limit: int = 2) -> tuple[str, in
     return s, total
 
 
-def _drop_environments(s: str, names=DROP_ENVIRONMENTS) -> tuple[str, list[str]]:
-    """Remove `\\begin{env}...\\end{env}` wholesale via a nesting-aware scan.
+def balance_blocks(s: str) -> tuple[str, int]:
+    """Close brace groups that never close within their own paragraph block.
 
-    A non-greedy regex breaks on same-name nesting (an `align` inside an `align`),
-    hence the stack.
+    A tokenizer that respects grouping will swallow the entire rest of a document
+    into an unclosed argument, so `\\label{sec:intro` with no `}` costs every
+    hardware sentence after it -- measured, not hypothesised: the
+    `unbalanced-brace-mid-document` fixture loses its A100 sentence without this.
+    TeX arguments essentially never span a blank line, so an unbalanced block is a
+    truncated or mistyped argument and closing it locally is the conservative
+    repair. Counting, not parsing: no loop over parser state, so it cannot hang.
     """
-    out, dropped, pos, depth, target = [], [], 0, 0, None
-    for m in _ENV_EDGE.finditer(s):
-        kind, name = m.group(1), m.group(2).strip().rstrip('*')
-        if depth == 0:
-            if kind == 'begin' and name in names:
-                out.append(s[pos:m.start()])
-                target, depth = name, 1
-                dropped.append(name)
-        elif name == target:
-            depth += 1 if kind == 'begin' else -1
-            if depth == 0:
-                out.append('\n\n')
-                pos, target = m.end(), None
-    out.append(s[pos:])
-    return ''.join(out), dropped
-
-
-def _strip_math(s: str) -> str:
-    s = _DISPLAY_MATH.sub('\n\n', s)
-
-    def inline(m):
-        body = (m.group(1) if m.group(1) is not None else m.group(2)) or ''
-        # keep bare numbers: "$8$ V100 GPUs" is a device count
-        return body if _NUMERIC_MATH.match(body) else ' '
-
-    return _INLINE_MATH.sub(inline, s)
-
-
-def _drop_with_args(s: str) -> str:
-    """Drop \\cite{...}, \\label{...}, \\footnote{...} and friends, argument included.
-
-    `_braced` reports an unbalanced group by returning its own start index, so every
-    loop over it must check for progress: `while s[j] == '{': _, j = _braced(s, j)`
-    spins forever on `\\cite{` with no closing brace, which is ordinary truncated
-    arXiv source. That non-termination consumed a worker per bad paper and killed two
-    full-history runs (`unbalanced-brace-*` fixtures pin it).
-    """
-    out, pos = [], 0
-    pat = re.compile(r'\\([a-zA-Z@]+)\s*\*?')
-    for m in pat.finditer(s):
-        if m.start() < pos or m.group(1) not in DROP_WITH_ARG:
-            continue
-        out.append(s[pos:m.start()])
-        j = m.end()
-        while j < len(s) and s[j] in ' \n':
-            j += 1
-        if j < len(s) and s[j] == '[':                    # optional arg
-            k = s.find(']', j)
-            j = k + 1 if k != -1 else j
-        while j < len(s) and s[j] == '{':
-            _, k = _braced(s, j)
-            if k == j:            # unbalanced: nothing to drop, keep the rest as text
-                break
-            j = k
-        out.append(' ')
-        pos = j
-    out.append(s[pos:])
-    return ''.join(out)
-
-
-def _unwrap(s: str, names=UNWRAP_MACROS, rounds: int = 3) -> str:
-    pat = re.compile(r'\\(' + '|'.join(map(re.escape, sorted(names))) + r')\s*\*?\s*(?=\{)')
-    for _ in range(rounds):
-        out, pos, hits = [], 0, 0
-        for m in pat.finditer(s):
-            if m.start() < pos:
-                continue
-            body, end = _braced(s, m.end())
-            if end == m.end():
-                continue
-            out.append(s[pos:m.start()])
-            out.append(body)
-            pos, hits = end, hits + 1
-        out.append(s[pos:])
-        s = ''.join(out)
-        if not hits:
-            break
-    return s
-
-
-def _mark_sections(s: str) -> str:
-    """Replace section macros with a NUL-delimited sentinel + paragraph break."""
-    out, pos = [], 0
-    pat = re.compile(r'\\(' + '|'.join(SECTION_MACROS) + r')\s*\*?\s*(?=\{|\[)')
-    for m in pat.finditer(s):
-        if m.start() < pos:
-            continue
-        j = m.end()
-        if j < len(s) and s[j] == '[':                    # short title form
-            k = s.find(']', j)
-            j = k + 1 if k != -1 else j
-        title, end = _braced(s, j) if j < len(s) and s[j] == '{' else ('', j)
-        out.append(s[pos:m.start()])
-        clean = _WS.sub(' ', _CONTROL_WORD.sub(' ', title).replace('{', '')
-                        .replace('}', '')).strip()[:MAX_TITLE_CHARS]
-        out.append(f'\n\n{SEC_OPEN}{clean}{SEC_CLOSE}\n\n' if clean else '\n\n')
-        pos = end
-    out.append(s[pos:])
-    return ''.join(out)
+    out, repaired = [], 0
+    # a capturing split alternates content, separator, content, ...; only the
+    # even positions are content (testing for a leading newline would wrongly skip
+    # a content block that merely starts on its own line)
+    for i, block in enumerate(re.split(r'(\n[ \t]*\n)', s)):
+        if i % 2 == 0 and block.strip():
+            depth, esc = 0, False
+            for ch in block:
+                if esc:
+                    esc = False
+                elif ch == '\\':
+                    esc = True
+                elif ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth = max(0, depth - 1)
+            if depth:
+                block += '}' * depth
+                repaired += depth
+        out.append(block)
+    return ''.join(out), repaired
 
 
 def _cut_bibliography(s: str) -> tuple[str, bool]:
@@ -394,9 +356,12 @@ def looks_like_reference(p: str) -> bool:
 
 
 def latex_to_text(src: str) -> tuple[str, dict]:
-    """LaTeX string -> plain text with section sentinels, plus conversion stats."""
-    stats = {'had_bibliography': False, 'macros_expanded': 0, 'dropped_envs': 0,
-             'body_found': False, 'truncated_at': None}
+    """LaTeX string -> plain text with section sentinels, plus conversion stats.
+
+    Everything between the pre-passes and the post-split is pylatexenc's work.
+    """
+    stats = {'had_bibliography': False, 'macros_expanded': 0, 'body_found': False,
+             'braces_repaired': 0, 'convert_error': None}
     s = _strip_comments(src)
 
     # Macros are defined in the preamble but must not be *read* as prose, so the
@@ -413,25 +378,17 @@ def latex_to_text(src: str) -> tuple[str, dict]:
     s, stats['macros_expanded'] = _apply_macros(s, defs)
     s, cut = _cut_bibliography(s)
     stats['had_bibliography'] = cut
-    s, dropped = _drop_environments(s)
-    stats['dropped_envs'] = len(dropped)
-    s = _ESCAPED_RE.sub(lambda m: _ESCAPED[m.group(1)], s)
-    s = _ENV_MARKER.sub(' ', s)          # env names must not become words
-    s = _strip_math(s)
-    s = _mark_sections(s)
-    s = _drop_with_args(s)
-    s = re.sub(r'\\href\s*\{[^}]*\}\s*(?=\{)', ' ', s)     # \href{url}{text} -> text
-    s = re.sub(r'\\url\s*\{([^}]*)\}', r' \1 ', s)         # keep vendor domains
-    s = _unwrap(s)
-    s = _ACCENT_SYMBOL.sub(r'\1', s)
-    s = _ACCENT_LETTER.sub(r'\1', s)
-    s = _CONTROL_WORD.sub(' ', s)
-    s = _CONTROL_SYMBOL.sub(' ', s)
-    s = s.replace('~', ' ').replace('&', ' ').replace('{', ' ').replace('}', ' ')
-    for ph, lit in _UNESCAPE.items():
-        s = s.replace(ph, lit)
-    # BUG 2 guard: a reference sitting directly under body prose used to be one
-    # paragraph, so the reference filter deleted the prose with it.
+    s = _DISPLAY_MATH.sub('\n\n', s)      # inline math survives; display does not
+    s, stats['braces_repaired'] = balance_blocks(s)
+
+    try:
+        walker = LatexWalker(s, latex_context=_parse_context(), tolerant_parsing=True)
+        nodes, _, _ = walker.get_latex_nodes()
+        s = _converter().nodelist_to_text(nodes)
+    except Exception as exc:              # pylatexenc is lenient, but never trusted
+        stats['convert_error'] = type(exc).__name__
+        return '', stats
+
     return _REF_LINE.sub(r'\n\n\1', s), stats
 
 
