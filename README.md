@@ -116,13 +116,37 @@ stays bounded regardless of table size.
 |---|---|---|
 | `trends.ipynb` | §4 | corpus composition, prevalence, **reporting specificity (2.8%→75.8%)**, mention-context mix, field adoption lag, measurement funnel |
 | `capacity.ipynb` | §5 | FLOPS/VRAM growth vs the vendor frontier, spec coverage, scale-out, precision capability-vs-choice, **inequality: Lorenz + bootstrapped Gini + Theil between/within-field** |
-| `productivity.ipynb` | §6 | paper support (full/fractional), **productive half-life with CIs + censoring + per-model diagnostics**, adoption lag by generation, citation & disruption support, rank-stability |
+| `productivity.ipynb` | §6 | paper support (count + per year since release, support over device life), **productive half-life with CIs + censoring + per-model diagnostics**, adoption lag by generation, 3-yr citation support, rank-stability |
 | `gpu_topics.ipynb` | §7 | GPU overlay on SPECTER2/BERTopic topics (frontier-lag by topic, segment mix) |
 | `manufacturer.ipynb` | §8 | vendor shares, HHI/entropy, **CUDA lock-in proxy**, multi-vendor papers, **export-control parts (A800/H800/H20)** |
 | `gpu_usage.ipynb` | — | original exploratory manufacturer/model view |
 
 Every notebook starts with a chdir-to-repo-root guard (they use repo-relative
 paths like `registry/hardware.yaml`) and reads the `Python (accelscan)` kernel.
+
+### Figure export
+
+Each notebook's setup cell calls `accelscan.plotting.setup_figures('<notebook>')`,
+which patches `plt.show` once so no plot cell carries figure bookkeeping. It:
+
+- writes every figure to `output/analysis/<notebook>/<nn>_<slug>.pdf`, where the
+  slug is derived from the figure's suptitle (or its axes titles) — figures are
+  named after what they plot, and `nn` preserves notebook order;
+- forces **integer year ticks**, so no axis ever reads `2007.5`. Year axes are
+  detected by view range (span inside 1980–2040 on a linear scale), not by label,
+  so "hardware age (years)" and log axes are left alone;
+- puts the **`%` on the tick labels** of any axis whose label opens with
+  `Percentage` / `Proportion` / `Cumulative share`. Axis labels therefore spell the
+  word out and must never open with a bare `%` glyph — the wording is also what
+  selects the scale (`Percentage…` = 0–100, `Proportion…`/`Cumulative share…` =
+  0–1), since a percentage axis topping out at 0.3% is otherwise
+  indistinguishable from a proportion.
+
+Re-render everything:
+
+```bash
+for nb in trends capacity productivity gpu_topics manufacturer gpu_usage; do jupyter nbconvert --to notebook --inplace --execute --ExecutePreprocessor.timeout=1800 notebooks/$nb.ipynb; done
+```
 
 Remaining stub: `accelscan/panels.py` (tidy year×field×model export panels).
 
