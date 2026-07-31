@@ -22,7 +22,10 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from accelscan.config import ABSTRACTS_PREFIX, BUCKET, OUT_PREFIX, PAPERS_PREFIX
+from accelscan.config import BUCKET
+from accelscan.meta import paper_titles_abstracts
+from accelscan.paths import S2ORC, Corpus, embeddings_chunk, get_corpus
+from accelscan.s3 import mentions_glob
 
 SPECTER2_BASE = 'allenai/specter2_base'
 PROXIMITY_ADAPTER = 'allenai/specter2'
@@ -32,55 +35,19 @@ BATCH_SIZE = 64
 EMB_DIM = 768
 
 
-def _matches_by_part(prefix: str, cols: list[str], text_col: str | None,
-                     ids: pl.DataFrame, so: dict, s3_client,
-                     n_parts: int | None = None, stop_at: int | None = None) -> pl.DataFrame:
-    """Read one parquet part at a time, semi-join to `ids`, keep matches.
-
-    Peak memory = one part + accumulated matches (never the whole table). This
-    is the bounded replacement for a whole-table join, which OOMs on the
-    tens-of-millions-row abstracts/papers tables."""
-    from accelscan.s3 import list_keys
-    keys = list_keys(prefix, suffix='.parquet', client=s3_client)
-    if n_parts:
-        keys = keys[:n_parts]
-    parts, total = [], 0
-    for k in keys:
-        part = pl.read_parquet(f's3://{BUCKET}/{k}', storage_options=so, columns=cols)
-        part = part.join(ids, on='corpusid', how='semi')
-        if text_col is not None:
-            part = part.filter(pl.col(text_col).is_not_null()
-                               & (pl.col(text_col).str.len_chars() > 20))
-        if part.height:
-            parts.append(part)
-            total += part.height
-        if stop_at and total >= stop_at:
-            break
-    schema = {c: (pl.Int64 if c == 'corpusid' else pl.Utf8) for c in cols}
-    return pl.concat(parts) if parts else pl.DataFrame(schema=schema)
-
-
 def load_worklist(mentions_glob: str, storage_options: dict,
                   limit: int | None = None, n_abstract_parts: int | None = None,
-                  s3_client=None) -> pl.DataFrame:
-    """Build (corpusid, title, abstract) for GPU papers, memory-safely, by
-    iterating abstract/paper parts one at a time (see `_matches_by_part`).
+                  s3_client=None, corpus: Corpus = S2ORC) -> pl.DataFrame:
+    """Build (key, title, abstract) for accelerator papers, memory-safely.
+
+    Reads metadata part-by-part via `accelscan.meta` (bounded memory: a whole-table
+    join OOMs on the tens-of-millions-row abstracts/papers tables).
     `n_abstract_parts` restricts the scan (=1 for a fast smoke; None = all)."""
     ids = (pl.scan_parquet(mentions_glob, storage_options=storage_options)
            .filter(pl.col('status') == 'ok')
-           .select('corpusid').unique().collect())          # ~270k int64, tiny
-    abstracts = _matches_by_part(ABSTRACTS_PREFIX, ['corpusid', 'abstract'], 'abstract',
-                                 ids, storage_options, s3_client,
-                                 n_parts=n_abstract_parts, stop_at=limit)
-    if limit:
-        abstracts = abstracts.head(limit)
-    matched_ids = abstracts.select('corpusid')
-    # stop once every matched id has a title row (one per id) — keeps a smoke
-    # from scanning all ~360 paper parts for a handful of ids.
-    titles = _matches_by_part(PAPERS_PREFIX, ['corpusid', 'title'], None,
-                              matched_ids, storage_options, s3_client,
-                              stop_at=matched_ids.height)
-    return abstracts.join(titles, on='corpusid', how='left').sort('corpusid')
+           .select(corpus.key).unique().collect())          # ~270k, tiny
+    return paper_titles_abstracts(corpus, ids, storage_options, s3_client,
+                                  n_parts=n_abstract_parts, stop_at=limit)
 
 
 class Specter2Encoder:
@@ -135,10 +102,9 @@ def build_texts(df: pl.DataFrame, sep: str) -> list[str]:
     return texts
 
 
-def _emb_frame(corpusids: list[int], embs: np.ndarray) -> pl.DataFrame:
-    return pl.DataFrame({'corpusid': corpusids,
-                         'emb': embs.tolist()},
-                        schema={'corpusid': pl.Int64,
+def _emb_frame(ids: list, embs: np.ndarray, corpus: Corpus = S2ORC) -> pl.DataFrame:
+    return pl.DataFrame({corpus.key: ids, 'emb': embs.tolist()},
+                        schema={corpus.key: corpus.key_dtype,
                                 'emb': pl.Array(pl.Float32, EMB_DIM)})
 
 
@@ -152,18 +118,22 @@ def main() -> None:
     ap.add_argument('--abstract-parts', type=int,
                     help='dev: scan only the first N abstract part-files (=1 for a fast smoke)')
     ap.add_argument('--local-out', help='dev: write chunks to a local dir instead of S3')
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
+    c = get_corpus(args.corpus)
 
     from accelscan.registry import load_registry
     from accelscan.s3 import make_s3_client, storage_options
     reg = load_registry()
     so = storage_options()
     client = make_s3_client()
-    mentions_glob = (f's3://{BUCKET}/{OUT_PREFIX}/mentions/{reg.version}'
-                     f'/{args.prompt_version}/{args.model_tag}/parts/*.parquet')
+    # discover the EXTRACTION-time registry version; building this from
+    # reg.version silently yielded an empty glob once the registry passed 0.1.0
+    glob = mentions_glob(args.model_tag, args.prompt_version, client=client, corpus=c)
 
-    work = load_worklist(mentions_glob, so, limit=args.limit,
-                         n_abstract_parts=args.abstract_parts, s3_client=client)
+    work = load_worklist(glob, so, limit=args.limit,
+                         n_abstract_parts=args.abstract_parts, s3_client=client,
+                         corpus=c)
     print(f'work-list: {work.height:,} papers with usable abstract', file=sys.stderr)
 
     enc = Specter2Encoder(precision=args.precision)
@@ -181,13 +151,13 @@ def main() -> None:
             if dst.exists():
                 continue
         else:
-            base = f'{OUT_PREFIX}/embeddings/{tag}/parts/chunk_{i:04d}'
+            base = embeddings_chunk(c, tag, i)
             done_key = f'{base}.done'
             if client.list_objects_v2(Bucket=BUCKET, Prefix=done_key).get('KeyCount', 0):
                 print(f'chunk {i} done, skipping', file=sys.stderr)
                 continue
         embs = enc.encode(build_texts(chunk, enc.sep))
-        frame = _emb_frame(chunk['corpusid'].to_list(), embs)
+        frame = _emb_frame(chunk[c.key].to_list(), embs, c)
         if args.local_out:
             frame.write_parquet(dst)
         else:

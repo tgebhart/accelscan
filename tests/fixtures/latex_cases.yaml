@@ -1,0 +1,221 @@
+# LaTeX -> paragraph conversion cases. One entry per failure mode that would
+# corrupt the measurement; every bug found in development becomes a case here.
+#
+# Fields: name, files{path: tex} (or `tex` for a single main.tex),
+#   contains / absent   -- substrings that must (not) appear in the joined output
+#   sections            -- exact list of distinct section labels, in order
+#   n_paragraphs        -- exact paragraph count, when the split itself is the point
+cases:
+  - name: comment-stripped-but-escaped-percent-kept
+    # TeX's real rule: '%' kills the rest of the line AND the newline; '\%' is a
+    # literal percent. Getting this wrong either glues words or invents breaks.
+    tex: |
+      \begin{document}
+      We ran the model on an NVIDIA V100 GPU in our lab this year.
+      % a stray comment naming an A100 that must never be extracted
+      Utilisation reached 95\% of peak throughput during the long training run.
+      \end{document}
+    contains: ['NVIDIA V100', '95% of peak']
+    absent: ['A100', 'stray comment']
+
+  - name: numeric-inline-math-keeps-device-count
+    # "$8$ V100s" must not become " V100s": device_count is a headline estimand.
+    tex: |
+      \begin{document}
+      Training used $8$ NVIDIA V100 GPUs and took $2.5$ days of wall clock time.
+      \end{document}
+    contains: ['8 NVIDIA V100 GPUs', '2.5 days']
+
+  - name: symbolic-inline-math-becomes-space-not-glue
+    tex: |
+      \begin{document}
+      We set $\alpha$ to a small value and trained on one NVIDIA A100 GPU here.
+      \end{document}
+    contains: ['NVIDIA A100']
+    absent: ['alpha', 'toa', 'and$']
+
+  - name: display-math-dropped
+    tex: |
+      \begin{document}
+      The loss is defined below and optimised on a single NVIDIA A100 GPU card.
+      $$ L = \sum_i x_i^2 + \gamma $$
+      \[ R = \frac{1}{n} \]
+      Convergence took twelve hours of training on that same accelerator card.
+      \end{document}
+    contains: ['NVIDIA A100', 'Convergence took twelve hours']
+    absent: ['\sum', 'gamma', 'frac']
+
+  - name: figure-and-caption-dropped-together
+    # Floats go with their captions, for comparability with S2ORC body text.
+    tex: |
+      \begin{document}
+      All experiments in this study ran on our institutional GPU cluster nodes.
+      \begin{figure}[t]
+      \includegraphics{arch.pdf}
+      \caption{Our pipeline, benchmarked on an H100 for the appendix figure.}
+      \end{figure}
+      Every reported number comes from the same hardware configuration as above.
+      \end{document}
+    contains: ['institutional GPU cluster', 'Every reported number']
+    absent: ['H100', 'arch.pdf', 'Our pipeline']
+
+  - name: nested-same-name-environment-fully-dropped
+    # A non-greedy regex would stop at the inner \end{align} and leak the tail.
+    tex: |
+      \begin{document}
+      We optimise the objective on a single NVIDIA V100 GPU in all experiments.
+      \begin{align}
+        x &= 1 \\
+        \begin{aligned} y &= 2 \end{aligned}
+      \end{align}
+      The remaining text after the equation block must survive intact for us.
+      \end{document}
+    contains: ['NVIDIA V100', 'remaining text after the equation block']
+    absent: ['x &= 1', 'aligned']
+
+  - name: verbatim-and-listing-dropped
+    tex: |
+      \begin{document}
+      The reference implementation was benchmarked on one NVIDIA A100 GPU node.
+      \begin{lstlisting}
+      model.to('cuda')  # trained on a K80 in this snippet
+      \end{lstlisting}
+      \begin{verbatim}
+      nvidia-smi output mentioning a GTX 1080 Ti card
+      \end{verbatim}
+      Results are averaged over five random seeds for every configuration here.
+      \end{document}
+    contains: ['NVIDIA A100', 'averaged over five random seeds']
+    absent: ['K80', 'GTX 1080', 'nvidia-smi']
+
+  - name: thebibliography-environment-dropped
+    tex: |
+      \begin{document}
+      Our simulations were executed on eight NVIDIA V100 GPUs over three weeks.
+      Scaling behaviour matched the analytic prediction across all node counts.
+      \begin{thebibliography}{9}
+      \bibitem{a} A. Author. GPU-accelerated Monte Carlo on a K80. Proc. IEEE, 2015.
+      \end{thebibliography}
+      \end{document}
+    contains: ['NVIDIA V100']
+    absent: ['K80', 'Monte Carlo', 'bibitem']
+
+  - name: bibliography-macro-truncates-past-halfway
+    tex: |
+      \begin{document}
+      The training runs described here used four NVIDIA A100 GPUs in parallel.
+      We report throughput, memory footprint, and total energy for every run.
+      Ablations repeat the protocol with a smaller batch size on the same nodes.
+      \bibliography{refs}
+      Nothing after the bibliography macro should be treated as body text here.
+      \end{document}
+    contains: ['NVIDIA A100', 'Ablations repeat the protocol']
+    absent: ['Nothing after the bibliography']
+
+  - name: early-bibliographystyle-must-not-decapitate
+    # \bibliographystyle in the preamble region is NOT a body cut point; without
+    # the position guard this paper would lose all of its text.
+    tex: |
+      \bibliographystyle{plain}
+      \begin{document}
+      Our benchmark suite was executed on a single NVIDIA RTX 3090 GPU machine.
+      Each configuration was repeated five times to estimate run-to-run variance.
+      \end{document}
+    contains: ['NVIDIA RTX 3090', 'repeated five times']
+
+  - name: input-resolved-across-members-and-bbl-ignored
+    files:
+      main.tex: |
+        \documentclass{article}
+        \begin{document}
+        \input{intro}
+        \input{missing_file}
+        \end{document}
+      intro.tex: |
+        \section{Setup}
+        The pipeline was trained end to end on four NVIDIA A100 GPUs per node.
+      refs.bbl: |
+        \bibitem{x} Someone. A K80-based renderer for volumetric data. ACM, 2014.
+    contains: ['four NVIDIA A100 GPUs']
+    absent: ['K80', 'renderer']
+    sections: ['Setup']
+
+  - name: zero-arg-macro-expanded
+    tex: |
+      \newcommand{\ourmodel}{FooNet}
+      \begin{document}
+      We trained \ourmodel{} for one week on a single NVIDIA V100 GPU instance.
+      \end{document}
+    contains: ['FooNet', 'NVIDIA V100']
+    absent: ['ourmodel']
+
+  - name: section-hierarchy-and-paragraph-heading
+    # \paragraph{} is a real heading in ML papers ("Implementation details").
+    tex: |
+      \begin{document}
+      \section{Method}
+      We describe the architecture and the optimiser configuration in this part.
+      \subsection{Training}
+      Optimisation ran for one hundred epochs on the cluster described earlier.
+      \paragraph{Implementation details}
+      All runs used two NVIDIA A100 GPUs with mixed precision enabled by default.
+      \end{document}
+    sections: ['Method', 'Training', 'Implementation details']
+    contains: ['two NVIDIA A100 GPUs']
+
+  - name: reference-shaped-paragraph-filtered
+    # Final net behind the two bibliography layers: a stray reference list that
+    # is not wrapped in thebibliography and has no \bibliography macro.
+    tex: |
+      \begin{document}
+      Our model was trained on a single NVIDIA V100 GPU for seventy two hours.
+      [12] B. Author et al. GPU-accelerated solvers on the K80. Proc. IEEE, pp. 3-9, 2015.
+      \end{document}
+    contains: ['NVIDIA V100']
+    absent: ['K80', 'B. Author']
+
+  - name: href-keeps-text-url-keeps-domain
+    tex: |
+      \begin{document}
+      See \href{https://example.com/page}{the vendor page} for the full listing,
+      and \url{https://developer.nvidia.com/cuda} for the toolkit documentation.
+      \end{document}
+    contains: ['the vendor page', 'developer.nvidia.com/cuda']
+    absent: ['example.com']
+
+  - name: accent-macros-do-not-eat-control-words
+    # Regression: brace-optional letter accents turned \cite{} into 'ite{}'.
+    tex: |
+      \begin{document}
+      Following Erd\H{o}s and Ren\'{e} \cite{smith2020} we \ref{eq:1} evaluate the
+      method on one NVIDIA A100 GPU, see also \usepackage-era legacy sources here.
+      \end{document}
+    contains: ['NVIDIA A100', 'Erdos', 'Rene']
+    absent: ['ite{smith2020}', 'ef{eq:1}', 'sepackage']
+
+  - name: latin1-bytes-decode
+    tex_latin1: |
+      \begin{document}
+      Schönberg and colleagues trained the network on one NVIDIA V100 GPU node.
+      \end{document}
+    contains: ['NVIDIA V100']
+
+  - name: no-begin-document-1990s-source
+    # Pre-2000 submissions sometimes ship a fragment with \documentstyle only.
+    tex: |
+      \documentstyle{article}
+      Simulations were performed on a Cray and later ported to an NVIDIA GPU card.
+      Timings for both platforms appear in the discussion section of this paper.
+    contains: ['NVIDIA GPU', 'Timings for both platforms']
+
+  - name: tabular-dropped-but-surrounding-prose-kept
+    tex: |
+      \begin{document}
+      Table~\ref{tab:hw} lists the hardware used for every reported experiment.
+      \begin{tabular}{ll}
+      GPU & A100 \\ Memory & 80GB \\
+      \end{tabular}
+      We now turn to the scaling analysis on our eight NVIDIA V100 GPU nodes.
+      \end{document}
+    contains: ['lists the hardware', 'eight NVIDIA V100 GPU nodes']
+    absent: ['80GB', 'Memory &']

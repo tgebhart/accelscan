@@ -30,7 +30,8 @@ from pathlib import Path
 
 import polars as pl
 
-from accelscan.config import BUCKET, OUT_PREFIX
+from accelscan.config import BUCKET
+from accelscan.paths import candidates_root, get_corpus, precision_key
 
 # Word-boundary patterns; case-insensitive except where caps disambiguate.
 # Ordered dict: flag -> pattern. Keep each pattern narrow — these become
@@ -52,7 +53,7 @@ PATTERNS: dict[str, str] = {
 }
 COMPILED = {k: re.compile(v, re.IGNORECASE) for k, v in PATTERNS.items()}
 
-SCHEMA = {'corpusid': pl.Int64,
+SCHEMA = {'paper_id': pl.Utf8, 'corpusid': pl.Int64,
           **{f'prec_{k}': pl.Boolean for k in PATTERNS},
           'prec_surfaces': pl.List(pl.Utf8), 'n_passages_scanned': pl.Int32}
 
@@ -68,10 +69,13 @@ def flags_for_text(text: str) -> tuple[dict[str, bool], list[str]]:
 
 
 def scan_candidates(df: pl.DataFrame) -> pl.DataFrame:
-    """candidates shard (corpusid, passage_text) -> per-paper precision flags."""
-    per_paper: dict[int, dict] = {}
-    for cid, text in zip(df['corpusid'].to_list(), df['passage_text'].to_list()):
-        rec = per_paper.setdefault(cid, {'corpusid': cid, 'surfaces': set(), 'n': 0})
+    """candidates shard (paper_id, corpusid, passage_text) -> per-paper flags."""
+    per_paper: dict[str, dict] = {}
+    ids = df['paper_id'] if 'paper_id' in df.columns else df['corpusid'].cast(pl.Utf8)
+    cids = df['corpusid'] if 'corpusid' in df.columns else [None] * df.height
+    for pid, cid, text in zip(ids.to_list(), list(cids), df['passage_text'].to_list()):
+        rec = per_paper.setdefault(pid, {'paper_id': pid, 'corpusid': cid,
+                                        'surfaces': set(), 'n': 0})
         rec['n'] += 1
         if not text:
             continue
@@ -80,7 +84,7 @@ def scan_candidates(df: pl.DataFrame) -> pl.DataFrame:
         for k, v in flags.items():
             rec[k] = rec.get(k, False) or v
     rows = [{
-        'corpusid': r['corpusid'],
+        'paper_id': r['paper_id'], 'corpusid': r['corpusid'],
         **{f'prec_{k}': bool(r.get(k, False)) for k in PATTERNS},
         'prec_surfaces': sorted(r['surfaces']),
         'n_passages_scanned': r['n'],
@@ -94,14 +98,16 @@ def main() -> None:
                     '(default: highest available)')
     ap.add_argument('--shards', type=int, help='dev: only first N candidate shards')
     ap.add_argument('--local-out', help='dev: write locally instead of S3')
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
+    c = get_corpus(args.corpus)
 
     from accelscan.s3 import list_keys, make_s3_client, storage_options
     client = make_s3_client()
     so = storage_options()
 
     # candidates are namespaced by the registry version at SCAN time
-    prefix = f'{OUT_PREFIX}/candidates/'
+    prefix = candidates_root(c)
     keys = list_keys(prefix, suffix='.parquet', client=client)
     versions = sorted({k[len(prefix):].split('/')[0] for k in keys},
                       key=lambda v: [int(x) for x in v.split('.')])
@@ -111,17 +117,24 @@ def main() -> None:
         keys = keys[:args.shards]
     print(f'candidates v{version}: {len(keys)} shards', file=sys.stderr)
 
+    # candidates written before paper_id existed carry only corpusid; probe once
+    probe = pl.read_parquet_schema(io.BytesIO(
+        client.get_object(Bucket=BUCKET, Key=keys[0])['Body'].read())) if keys else {}
+    cols = [c for c in ('paper_id', 'corpusid') if c in probe] + ['passage_text']
+    print(f'  reading columns {cols}', file=sys.stderr)
+
     parts = []
     for i, k in enumerate(keys):
         body = client.get_object(Bucket=BUCKET, Key=k)['Body'].read()
-        df = pl.read_parquet(io.BytesIO(body), columns=['corpusid', 'passage_text'])
+        df = pl.read_parquet(io.BytesIO(body), columns=cols)
         parts.append(scan_candidates(df))
         if (i + 1) % 25 == 0 or i + 1 == len(keys):
             print(f'  {i+1}/{len(keys)} shards', file=sys.stderr)
 
     out = pl.concat(parts) if parts else pl.DataFrame(schema=SCHEMA)
     # a paper can appear in several shards; OR the flags together
-    out = out.group_by('corpusid').agg(
+    out = out.group_by('paper_id').agg(
+        corpusid=pl.col('corpusid').first(),
         *[pl.col(f'prec_{k}').any() for k in PATTERNS],
         prec_surfaces=pl.col('prec_surfaces').list.explode(
             keep_nulls=False, empty_as_null=False).unique(),
@@ -136,7 +149,7 @@ def main() -> None:
         out.write_parquet(d / 'paper_precision.parquet')
         print(f'wrote {d}/paper_precision.parquet', file=sys.stderr)
     else:
-        key = f'{OUT_PREFIX}/precision/{version}/paper_precision.parquet'
+        key = precision_key(c, version)
         buf = io.BytesIO(); out.write_parquet(buf)
         client.put_object(Bucket=BUCKET, Key=key, Body=buf.getvalue())
         print(f'wrote s3://{BUCKET}/{key}', file=sys.stderr)

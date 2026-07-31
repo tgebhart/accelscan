@@ -3,8 +3,8 @@
 Loads the stage-E1 embeddings (all chunks), reloads the aligned abstracts for
 c-TF-IDF keywords, runs BERTopic (UMAP → HDBSCAN → c-TF-IDF) on the
 *precomputed* embeddings, and writes:
-  clusters/{cluster_version}/assignments.parquet   corpusid, topic_id, topic_prob
-  clusters/{cluster_version}/topics.parquet        topic_id, size, keywords, rep_corpusids
+  clusters/{cluster_version}/assignments.parquet   <key>, topic_id, topic_prob
+  clusters/{cluster_version}/topics.parquet        topic_id, size, keywords, rep_<key>s
   clusters/{cluster_version}/params.json           embed tag + UMAP/HDBSCAN params
 
 Unsupervised on topic content only — GPU identity is never an input here; it is
@@ -24,7 +24,8 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from accelscan.config import ABSTRACTS_PREFIX, BUCKET, OUT_PREFIX
+from accelscan.meta import paper_abstracts
+from accelscan.paths import S2ORC, Corpus, clusters_base, embeddings_parts, get_corpus, s3_uri
 
 # UMAP + HDBSCAN defaults (BERTopic recipe); recorded in params.json.
 # n_neighbors=30 and min_samples=5 (below min_cluster_size) both lower the
@@ -41,19 +42,20 @@ VECT_MIN_DF = 10
 SEED = 42
 
 
-def load_embeddings(embed_tag: str, so: dict, local_embed: str | None) -> pl.DataFrame:
+def load_embeddings(embed_tag: str, so: dict, local_embed: str | None,
+                    corpus: Corpus = S2ORC) -> pl.DataFrame:
     if local_embed:
         src = f'{local_embed}/*.parquet'
-        return pl.read_parquet(src).sort('corpusid')
-    src = f's3://{BUCKET}/{OUT_PREFIX}/embeddings/{embed_tag}/parts/*.parquet'
-    return pl.read_parquet(src, storage_options=so).unique('corpusid').sort('corpusid')
+        return pl.read_parquet(src).sort(corpus.key)
+    src = s3_uri(f'{embeddings_parts(corpus, embed_tag)}/*.parquet')
+    return pl.read_parquet(src, storage_options=so).unique(corpus.key).sort(corpus.key)
 
 
-def load_abstracts_for(ids: list[int], so: dict) -> pl.DataFrame:
-    return (pl.scan_parquet(f's3://{BUCKET}/{ABSTRACTS_PREFIX}*.parquet', storage_options=so)
-            .select('corpusid', 'abstract')
-            .filter(pl.col('corpusid').is_in(ids))
-            .collect())
+def load_abstracts_for(ids: list, so: dict, corpus: Corpus = S2ORC) -> pl.DataFrame:
+    """Abstracts for the c-TF-IDF topic keywords, via the corpus metadata source."""
+    from accelscan.s3 import make_s3_client
+    frame = pl.DataFrame({corpus.key: ids}, schema={corpus.key: corpus.key_dtype})
+    return paper_abstracts(corpus, frame, so, make_s3_client())
 
 
 def build_topic_model(min_cluster_size: int, min_samples: int, n_neighbors: int,
@@ -89,19 +91,21 @@ def main() -> None:
                     help='reassign noise (-1) papers to nearest topic by embedding cosine')
     ap.add_argument('--local-embed', help='dev: read embeddings from a local dir')
     ap.add_argument('--local-out', help='dev: write clusters to a local dir')
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
+    c = get_corpus(args.corpus)
 
     from accelscan.s3 import make_s3_client, storage_options
     so = storage_options()
 
-    emb_df = load_embeddings(args.embed_tag, so, args.local_embed)
-    corpusids = emb_df['corpusid'].to_list()
+    emb_df = load_embeddings(args.embed_tag, so, args.local_embed, c)
+    corpusids = emb_df[c.key].to_list()
     embeddings = np.asarray(emb_df['emb'].to_list(), dtype=np.float32)
     print(f'{len(corpusids):,} embeddings loaded ({embeddings.shape})', file=sys.stderr)
 
     # align abstracts to embedding order for c-TF-IDF
-    abstracts = load_abstracts_for(corpusids, so)
-    amap = dict(zip(abstracts['corpusid'].to_list(), abstracts['abstract'].to_list()))
+    abstracts = load_abstracts_for(corpusids, so, c)
+    amap = dict(zip(abstracts[c.key].to_list(), abstracts['abstract'].to_list()))
     docs = [amap.get(cid) or '' for cid in corpusids]
 
     topic_model = build_topic_model(args.min_cluster_size, args.min_samples,
@@ -119,26 +123,26 @@ def main() -> None:
         topics = [int(t) for t in reduced]
 
     assignments = pl.DataFrame({
-        'corpusid': corpusids,
+        c.key: corpusids,
         'topic_id': topics,
         'topic_prob': [float(p) for p in (probs if probs is not None else [0.0] * len(topics))],
         'was_outlier': was_outlier,
-    }, schema={'corpusid': pl.Int64, 'topic_id': pl.Int32, 'topic_prob': pl.Float32,
+    }, schema={c.key: c.key_dtype, 'topic_id': pl.Int32, 'topic_prob': pl.Float32,
                'was_outlier': pl.Boolean})
 
     # sizes from FINAL assignments (reflects any outlier reassignment)
     sizes = dict(assignments.group_by('topic_id').len().iter_rows())
     all_topics = sorted(sizes)
-    rep = {t: assignments.filter(pl.col('topic_id') == t)['corpusid'].head(5).to_list()
+    rep = {t: assignments.filter(pl.col('topic_id') == t)[c.key].head(5).to_list()
            for t in all_topics}
     topics_df = pl.DataFrame({
         'topic_id': all_topics,
         'size': [sizes[t] for t in all_topics],
         'keywords': [', '.join(w for w, _ in topic_model.get_topic(t)[:10]) if t != -1 else '(noise)'
                      for t in all_topics],
-        'rep_corpusids': [rep[t] for t in all_topics],
+        f'rep_{c.key}s': [rep[t] for t in all_topics],
     }, schema={'topic_id': pl.Int32, 'size': pl.Int64, 'keywords': pl.Utf8,
-               'rep_corpusids': pl.List(pl.Int64)})
+               f'rep_{c.key}s': pl.List(c.key_dtype)})
 
     n_topics = sum(t != -1 for t in all_topics)
     noise = int(assignments.filter(pl.col('topic_id') == -1).height)
@@ -167,7 +171,7 @@ def main() -> None:
         print(f'wrote clusters to {out}/', file=sys.stderr)
     else:
         client = make_s3_client()
-        base = f'{OUT_PREFIX}/clusters/{version}'
+        base = clusters_base(c, version)
         for name, frame in [('assignments', assignments), ('topics', topics_df)]:
             buf = io.BytesIO(); frame.write_parquet(buf)
             client.put_object(Bucket=BUCKET, Key=f'{base}/{name}.parquet', Body=buf.getvalue())

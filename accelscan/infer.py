@@ -28,7 +28,8 @@ os.environ.setdefault('VLLM_USE_FLASHINFER_SAMPLER', '0')
 import orjson
 import polars as pl
 
-from accelscan.config import BUCKET, OUT_PREFIX
+from accelscan.config import BUCKET
+from accelscan.paths import S2ORC, Corpus, get_corpus, mentions_parts, passages_key
 from accelscan.llm_schema import EXTRACTION_JSON_SCHEMA, PassageExtraction
 from accelscan.prompts import PROMPT_VERSION, SYSTEM_PROMPT, build_user_prompt
 from accelscan.registry import load_registry
@@ -37,7 +38,8 @@ DEFAULT_MODEL = 'Qwen/Qwen3-14B'
 MAX_OUTPUT_TOKENS = 1024
 
 MENTION_SCHEMA = {
-    'passage_id': pl.Utf8, 'corpusid': pl.Int64, 'passage_shard': pl.Int32,
+    'passage_id': pl.Utf8, 'paper_id': pl.Utf8, 'corpusid': pl.Int64,
+    'passage_shard': pl.Int32,
     'status': pl.Utf8, 'mention_idx': pl.Int32,
     'model_raw': pl.Utf8, 'model_normalized': pl.Utf8, 'manufacturer': pl.Utf8,
     'accelerator_subtype': pl.Utf8, 'device_count': pl.Int32,
@@ -124,7 +126,10 @@ def run_inference(llm, params, passages: pl.DataFrame, shard_index: int,
         text = out.outputs[0].text
         truncated = out.outputs[0].finish_reason == 'length'
         status, mentions = parse_output(text, truncated)
-        base = {'passage_id': row['passage_id'], 'corpusid': row['corpusid'],
+        # passage shards written before paper_id existed only carry corpusid
+        base = {'passage_id': row['passage_id'],
+                'paper_id': row.get('paper_id') or str(row['corpusid']),
+                'corpusid': row['corpusid'],
                 'passage_shard': shard_index, 'status': status,
                 'raw_json': text, **provenance}
         if not mentions:
@@ -139,12 +144,13 @@ def run_inference(llm, params, passages: pl.DataFrame, shard_index: int,
 
 
 def process_shard(client, llm, params, shard_index: int, tag: str,
-                  registry_version: str, provenance: dict) -> None:
+                  registry_version: str, provenance: dict,
+                  corpus: Corpus = S2ORC) -> None:
     """Fetch one passage shard, extract, upload output + `.done` marker.
     Skips if the marker already exists."""
-    src = f'{OUT_PREFIX}/passages/{registry_version}/shard_{shard_index:04d}.parquet'
-    dst_base = (f'{OUT_PREFIX}/mentions/{registry_version}/{PROMPT_VERSION}/{tag}'
-                f'/parts/shard_{shard_index:04d}')
+    src = passages_key(corpus, registry_version, shard_index)
+    dst_base = (f'{mentions_parts(corpus, registry_version, PROMPT_VERSION, tag)}'
+                f'/shard_{shard_index:04d}')
     done_key = f'{dst_base}.done'
     if client.list_objects_v2(Bucket=BUCKET, Prefix=done_key).get('KeyCount', 0):
         print(f'shard {shard_index} already done, skipping', file=sys.stderr)
@@ -170,6 +176,7 @@ def main() -> None:
     ap.add_argument('--local-parquet', help='dev mode: candidates parquet on disk')
     ap.add_argument('--out-dir', default='output/infer_local')
     ap.add_argument('--limit', type=int)
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
 
     reg = load_registry()
@@ -200,8 +207,9 @@ def main() -> None:
     tag = model_tag(args.model)
     llm = build_llm(args.model, args.max_model_len)  # loaded once, reused across shards
     params = sampling_params()
+    c = get_corpus(args.corpus)
     for shard_index in shards:
-        process_shard(client, llm, params, shard_index, tag, reg.version, provenance)
+        process_shard(client, llm, params, shard_index, tag, reg.version, provenance, c)
     print(f'done: {len(shards)} shard(s) processed', file=sys.stderr)
 
 

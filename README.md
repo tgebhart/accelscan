@@ -1,7 +1,9 @@
 # accelscan
 
-GPU/accelerator mention extraction from S2ORC full text, for a metascience
-study of hardware diffusion in science (2005–2025).
+GPU/accelerator mention extraction from scientific full text, for a metascience
+study of hardware diffusion in science. **Two corpora**, extracted by identical
+code and reported separately: **S2ORC** (2005–2025, GROBID-over-PDF body text) and
+**arXiv** (1991–2025, author LaTeX source).
 
 Pipeline: **registry/regex candidate filter → local LLM structured extraction
 → normalization → analysis panels.** All bulk outputs are sharded parquet
@@ -82,6 +84,71 @@ sbatch slurm/cluster.txt               # BERTopic UMAP+HDBSCAN [msibigmem]
   (Titan's real GPU count).
 - Missing specs are **null, never zero-filled**, with `spec_missing_*` flags and a
   published spec-coverage-by-year table (fp32 coverage: 55% in 2010 → ~83% after 2019).
+
+## Corpora
+
+`accelscan.paths.Corpus` carries the output namespace and the per-paper key; every
+stage takes `--corpus {s2orc,arxiv}`, defaulting to `s2orc`, so all pre-existing
+commands are unchanged.
+
+| | s2orc | arxiv |
+|---|---|---|
+| source | `s2orc_v2/*.gz` on MSI (gzip JSONL) | `s3://arxiv/src/*.tar` (requester-pays, streamed) |
+| text | GROBID body paragraphs | LaTeX source, de-TeXed by `accelscan/latex.py` |
+| key column | `corpusid` (Int64) | `paper_id` (`arxiv:2301.01234`); `corpusid` is null |
+| output prefix | `accelscan/…` (unchanged) | `accelscan/arxiv/…` |
+| `year` | Semantic Scholar metadata | free from the arXiv id (`YYMM`) |
+| analysis window | 2005–2025 | 2005–2026 (arXiv has no ingestion lag; 2026 partial) |
+| `field` | `s2fieldsofstudy` | arXiv's own taxonomy (`registry/arxiv_categories.yaml`) |
+| citations | `citations` table (`i_3`/`i_5`, CD index) | **none** — no S2 identifiers by design |
+
+**S2ORC keys never move.** `tests/test_paths.py` asserts every S2ORC key
+byte-for-byte against the pre-refactor literals and asserts no arXiv key is
+reachable from an S2ORC prefix listing — which is what keeps `.done` diffing and
+mentions-version discovery corpus-safe.
+
+The matcher, gating, passage caps and the whole LLM stage are shared: both corpora
+enter through `scan.scan_paragraphs`, and
+`tests/test_scan.py::test_shared_core_is_corpus_agnostic` fails if that is ever
+forked.
+
+## arXiv pipeline
+
+```bash
+# 0. metadata snapshot (Kaggle, CC0, ~5.4GB) -> field/title/abstract  [msismall]
+sbatch slurm/arxiv_metadata.txt
+
+# 1a. PILOT from MSI: 20 tars over four eras (~10GB, ~$1 egress) + conversion audit
+sbatch slurm/arxiv_pilot_scan.txt
+
+# 1b. FULL history on EC2 in us-east-1 -- reads 2.9TB for $0 and writes to MSI S3
+#     (the same run from MSI would be ~$260 of AWS egress; arxiv_scan refuses
+#     to start outside us-east-1 without --yes-i-know)
+python -m accelscan.arxiv_scan --dry-run           # bytes + bill, downloads nothing
+bash scripts/ec2_stage1_bootstrap.sh               # as EC2 user-data, one YYMM slice each
+
+# 2. repack + LLM + analytics, all on MSI
+sbatch slurm/arxiv_stage2_infer.txt                # set --array from repack's manifest
+sbatch slurm/arxiv_analytics.txt
+```
+
+`arxiv_scan` writes a third product per tar, `arxiv/ingest/parts/{shard}.parquet`,
+holding per-paper skip reasons (`pdf_only`, `postscript`, `no_tex`, …) and LaTeX
+conversion stats (`encoding`, `body_found`, `includes_missing`, `had_bibliography`,
+`n_ref_paras_filtered`). Plot these **by year before trusting any trend**: a
+converter that degrades across eras manufactures exactly the upward trend this
+project measures.
+
+### LaTeX conversion
+
+`accelscan/latex.py` is hand-rolled and stdlib-only. Off-the-shelf parsers were
+measured against this module's own fixture suite, not dismissed: pylatexenc 2.11
+passed 8/19 cases to our 19/19 and ran 18× slower (56 vs 3 single-core hours over
+2.7M papers), mostly because a faithful renderer keeps the floats, captions,
+listings and bibliographies that the measurement must drop. Behaviour is pinned by
+`tests/fixtures/latex_cases.yaml`; **bibliography exclusion is three layers**
+(`.bbl` never read → truncate at a bibliography macro past the halfway guard →
+reference-shape filter), because S2ORC gets that for free and arXiv must not lose it.
 
 ## Versioning note
 

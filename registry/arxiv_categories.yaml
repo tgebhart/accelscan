@@ -1,0 +1,70 @@
+# arXiv archive -> field label, for the arXiv corpus's field-level analyses.
+#
+# The arXiv corpus uses **arXiv's own taxonomy**, not `s2fieldsofstudy`: the two
+# corpora are reported separately, and arXiv's groups are both finer and more
+# accurate for its own papers than a classifier's guess. `field` is the group name
+# below; `primary_category` (cs.LG, hep-ph, astro-ph.GA) is carried alongside for
+# the fine-grained breakdowns that have no S2ORC analogue.
+#
+# Legacy archives (the pre-2007 identifier scheme, several now defunct) are mapped
+# into the modern group that absorbed them, so a 1995 paper and a 2025 paper land in
+# the same field. `tests/test_arxiv_meta.py` fails if any archive is unmapped --
+# an unmapped archive would silently produce a null `field` and vanish from every
+# field figure.
+version: "1.0"
+
+groups:
+  Computer Science:
+    - cs
+    - cmp-lg          # -> cs.CL (computation and language)
+
+  Mathematics:
+    - math
+    - alg-geom        # -> math.AG
+    - dg-ga           # -> math.DG
+    - funct-an        # -> math.FA
+    - q-alg           # -> math.QA
+
+  Physics:
+    - astro-ph
+    - cond-mat
+    - gr-qc
+    - hep-ex
+    - hep-lat
+    - hep-ph
+    - hep-th
+    - math-ph         # arXiv lists math-ph under Physics
+    - nlin
+    - nucl-ex
+    - nucl-th
+    - physics
+    - quant-ph
+    # legacy physics archives
+    - acc-phys        # -> physics.acc-ph
+    - adap-org        # -> nlin.AO
+    - ao-sci          # -> physics.ao-ph
+    - atom-ph         # -> physics.atom-ph
+    - bayes-an        # -> physics.data-an
+    - chao-dyn        # -> nlin.CD
+    - chem-ph         # -> physics.chem-ph
+    - comp-gas        # -> nlin.CG
+    - mtrl-th         # -> cond-mat.mtrl-sci
+    - patt-sol        # -> nlin.PS
+    - plasm-ph        # -> physics.plasm-ph
+    - solv-int        # -> nlin.SI
+    - supr-con        # -> cond-mat.supr-con
+
+  Quantitative Biology:
+    - q-bio
+
+  Quantitative Finance:
+    - q-fin
+
+  Statistics:
+    - stat
+
+  Electrical Engineering and Systems Science:
+    - eess
+
+  Economics:
+    - econ

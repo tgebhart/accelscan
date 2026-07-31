@@ -1,0 +1,44 @@
+#!/bin/bash -l
+#SBATCH --time=4:00:00
+#SBATCH -p msibigmem
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+# PILOT ONLY: 20 tars (~10 GB, ~$1 of egress) run from MSI so the LaTeX converter
+# can be validated before any AWS account exists. Spans four eras deliberately --
+# 1995 \documentstyle source, 2005 mixed encodings, 2015, and 2024 tikz-heavy
+# papers fail in different ways.
+#
+# The FULL history must NOT run here: 2.9 TB from MSI is ~$260 of egress. Use
+# scripts/ec2_stage1_bootstrap.sh, which reads the same tars in-region for $0.
+export PYTHONUNBUFFERED=TRUE
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+for RANGE in 9506-9512 0506-0512 1506-1512 2406-2412; do
+  python -m accelscan.arxiv_scan --yymm $RANGE --tars 5 --max-workers 8 \
+    --max-bytes 4e9 --yes-i-know
+done
+
+# then audit: per-year conversion stats + a hand read of the passages
+python - <<'PY'
+import polars as pl
+from accelscan.paths import ingest_stats_parts, s3_uri
+from accelscan.s3 import storage_options
+d = pl.read_parquet(s3_uri(f'{ingest_stats_parts()}/*.parquet'),
+                    storage_options=storage_options())
+print(d.group_by('year').agg(
+    papers=pl.len(),
+    skipped=(pl.col('skip_reason') != '').mean().round(3),
+    pdf_only=(pl.col('skip_reason') == 'pdf_only').mean().round(3),
+    body_found=pl.col('body_found').mean().round(3),
+    med_paras=pl.col('n_paragraphs').median(),
+    med_chars=pl.col('plain_chars').median(),
+    includes_missing=pl.col('includes_missing').mean().round(2),
+).sort('year'))
+PY

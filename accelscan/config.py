@@ -19,6 +19,10 @@ MAX_PASSAGES_MODEL_SPECIFIC = 20
 MAX_PASSAGES_GENERIC_ONLY = 5
 PASSAGE_CHAR_CAP = 2500
 GATE_WINDOW_CHARS = 250
+# LaTeX authors write far longer paragraphs than GROBID emits, so an arXiv
+# paragraph is re-split at sentence boundaries above this length -- otherwise the
+# matched sentence can fall outside PASSAGE_CHAR_CAP when the passage is assembled.
+SPLIT_LONG_PARA_CHARS = 3000
 
 
 def s3_config() -> dict:

@@ -16,11 +16,15 @@ years after publication, so `i_5` is the 5-year window; `cd_k` = CD/disruption
 index). Papers published after CITATION_CUTOFF have incomplete windows and are
 flagged rather than dropped.
 
-Big tables are handled part-by-part (the papers and citations tables are far
-too large to materialize whole — see `_by_part`).
+Big tables are handled part-by-part (the papers table is far too large to
+materialize whole — see `accelscan.meta.read_by_part`).
 
-  python -m accelscan.denominator                    # all three -> S3
-  python -m accelscan.denominator --skip-citations   # faster
+Corpus-aware: `--corpus arxiv` reads the arXiv inventory/mentions and takes year +
+field from the arXiv metadata snapshot. arXiv produces no `citations` table.
+
+  python -m accelscan.denominator                     # all three -> S3
+  python -m accelscan.denominator --skip-citations    # faster
+  python -m accelscan.denominator --corpus arxiv      # no citations table
 """
 
 import argparse
@@ -29,7 +33,10 @@ import sys
 
 import polars as pl
 
-from accelscan.config import BUCKET, OUT_PREFIX, PAPERS_PREFIX
+from accelscan.config import BUCKET
+from accelscan.meta import paper_fields
+from accelscan.paths import (ARXIV, S2ORC, Corpus, analytic_base, get_corpus,
+                            inventory_glob)
 
 # Precomputed citation/disruption outcomes (lab table): i_k = cumulative
 # citations k years post-publication; cd_k = CD (disruption) index.
@@ -41,57 +48,30 @@ CITATION_CUTOFF = 2020        # focal papers <= this year have a complete 5-yr w
 USED = 'used-in-this-work'
 
 
-def _by_part(prefix: str, cols: list[str], ids: pl.DataFrame | None,
-             on: str, so: dict, client, transform=None,
-             label: str = '') -> pl.DataFrame:
-    """Read one parquet part at a time, optionally semi-join to `ids` on `on`,
-    apply `transform`, accumulate. Bounded memory regardless of table size."""
-    from accelscan.s3 import list_keys
-    keys = list_keys(prefix, suffix='.parquet', client=client)
-    parts = []
-    for i, k in enumerate(keys):
-        df = pl.read_parquet(f's3://{BUCKET}/{k}', storage_options=so, columns=cols)
-        if ids is not None:
-            df = df.join(ids, on=on, how='semi')
-        if transform is not None:
-            df = transform(df)
-        if df.height:
-            parts.append(df)
-        if label and ((i + 1) % 60 == 0 or i + 1 == len(keys)):
-            print(f'  [{label}] {i+1}/{len(keys)} parts', file=sys.stderr)
-    return pl.concat(parts) if parts else pl.DataFrame(schema={c: pl.Null for c in cols})
-
-
-def build_denominator(so: dict, client) -> pl.DataFrame:
+def build_denominator(so: dict, client, c: Corpus = S2ORC) -> pl.DataFrame:
     """Full-text population with year + field. One row per paper."""
     inv = pl.read_parquet(
-        f's3://{BUCKET}/{OUT_PREFIX}/inventory/parts/*.parquet', storage_options=so,
-        columns=['corpusid', 'has_body', 'is_candidate', 'body_chars'])
-    inv = inv.unique('corpusid')
-    print(f'inventory: {inv.height:,} full-text papers', file=sys.stderr)
+        inventory_glob(c), storage_options=so,
+        columns=[c.key, 'has_body', 'is_candidate', 'body_chars'])
+    inv = inv.unique(c.key)
+    print(f'{c.name} inventory: {inv.height:,} full-text papers', file=sys.stderr)
 
-    ids = inv.select('corpusid')
-    meta = _by_part(
-        PAPERS_PREFIX, ['corpusid', 'year', 's2fieldsofstudy', 'citationcount'],
-        ids, 'corpusid', so, client,
-        transform=lambda df: df.with_columns(
-            field=pl.col('s2fieldsofstudy').list.first().struct.field('category'),
-            n_fields=pl.col('s2fieldsofstudy').list.len(),
-        ).select('corpusid', 'year', 'field', 'n_fields', 'citationcount'),
-        label='papers')
-    return inv.join(meta, on='corpusid', how='left')
+    meta = paper_fields(c, inv.select(c.key), so, client)
+    return inv.join(meta, on=c.key, how='left')
 
 
-def build_paper_flags(so: dict, model_tag: str, prompt_version: str) -> pl.DataFrame:
+def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
+                      c: Corpus = S2ORC) -> pl.DataFrame:
     """Accelerator numerators per paper (from mentions + canonicalization)."""
     from accelscan.normalize import canonicalize_column
     from accelscan.registry import load_registry
     from accelscan.s3 import mentions_glob
     reg = load_registry()
 
-    m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version), storage_options=so)
+    m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version, corpus=c),
+                        storage_options=so)
          .filter(pl.col('status') == 'ok')
-         .select('corpusid', 'model_normalized', 'manufacturer',
+         .select(c.key, 'model_normalized', 'manufacturer',
                  'accelerator_subtype', 'usage_context', 'device_count')
          .collect())
     m = canonicalize_column(m, reg)
@@ -102,7 +82,7 @@ def build_paper_flags(so: dict, model_tag: str, prompt_version: str) -> pl.DataF
         is_model=(pl.col('canonical_kind') == 'model'),
         is_used=(pl.col('usage_context') == USED))
 
-    return m.group_by('corpusid').agg(
+    return m.group_by(c.key).agg(
         accel_any=pl.lit(True),
         accel_used=pl.col('is_used').any(),
         model_specific=pl.col('is_model').any(),
@@ -158,23 +138,30 @@ def main() -> None:
     ap.add_argument('--prompt-version', default='p1')
     ap.add_argument('--skip-citations', action='store_true')
     ap.add_argument('--local-out')
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
+    c = get_corpus(args.corpus)
 
     from accelscan.registry import load_registry
     from accelscan.s3 import make_s3_client, storage_options
     so, client = storage_options(), make_s3_client()
     rv = load_registry().version
-    base = f'{OUT_PREFIX}/analytic/{rv}/{args.prompt_version}/{args.model_tag}'
+    base = analytic_base(c, rv, args.prompt_version, args.model_tag)
 
-    den = build_denominator(so, client)
-    flags = build_paper_flags(so, args.model_tag, args.prompt_version)
+    den = build_denominator(so, client, c)
+    flags = build_paper_flags(so, args.model_tag, args.prompt_version, c)
     print(f'denominator {den.height:,} | flagged accelerator papers {flags.height:,}',
           file=sys.stderr)
 
     outputs = {'denominator': den, 'paper_flags': flags}
-    if not args.skip_citations:
-        focal = (den.join(flags.select('corpusid'), on='corpusid', how='semi')
-                 .select('corpusid', 'year'))
+    # Citations come from a Semantic-Scholar-keyed outcomes table, and the arXiv
+    # corpus deliberately carries no S2 identifiers -- so there is no arXiv
+    # citation table and the arXiv notebooks drop those analyses entirely.
+    if args.skip_citations or c is ARXIV:
+        print(f'skipping citations for {c.name}', file=sys.stderr)
+    else:
+        focal = (den.join(flags.select(c.key), on=c.key, how='semi')
+                 .select(c.key, 'year'))
         outputs['citations'] = build_citations(so, client, focal)
 
     if args.local_out:

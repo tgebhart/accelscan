@@ -28,7 +28,8 @@ import sys
 
 import polars as pl
 
-from accelscan.config import BUCKET, OUT_PREFIX
+from accelscan.config import BUCKET
+from accelscan.paths import S2ORC, Corpus, capacity_key, get_corpus
 from accelscan.normalize import canonicalize_column
 from accelscan.registry import CompiledRegistry, load_registry
 
@@ -79,13 +80,14 @@ def winsorize_counts(mentions: pl.DataFrame, year_col: str = 'year',
     return out.drop('cap')
 
 
-def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame) -> pl.DataFrame:
+def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame,
+                   key: str = 'corpusid') -> pl.DataFrame:
     """Mention-level (already canonicalized, usage-filtered, winsorized)
     -> one row per paper with capacity sums and spec-coverage flags."""
     d = mentions.join(specs, on='canonical_model', how='left')
     # dedup: one row per (paper, model) using the max reported device count,
     # so a model repeated across passages is not double-counted
-    d = (d.group_by('corpusid', 'canonical_model')
+    d = (d.group_by(key, 'canonical_model')
          .agg(pl.col('n_dev').max(),
               pl.col('memory_gb').max().alias('stated_memory_gb'),
               *[pl.col(c).first() for c in
@@ -101,7 +103,7 @@ def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame) -> pl.DataFrame:
             (pl.col('n_dev') * pl.col(col)).sum().alias(f'reported_{axis}_gflops'),
             pl.col(col).is_null().all().alias(f'spec_missing_{axis}'),
         ]
-    agg = d.group_by('corpusid').agg(
+    agg = d.group_by(key).agg(
         *exprs,
         reported_vram_gb=(pl.col('n_dev') * pl.col('vram_eff')).sum(),
         reported_tdp_w=(pl.col('n_dev') * pl.col('tdp_w')).sum(),
@@ -127,19 +129,20 @@ def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame) -> pl.DataFrame:
 
 def build(model_tag: str, prompt_version: str, count_policy: str,
           limit: int | None = None,
-          mentions_version: str | None = None) -> pl.DataFrame:
-    from accelscan.config import PAPERS_PREFIX
-    from accelscan.s3 import mentions_glob, storage_options
+          mentions_version: str | None = None,
+          corpus: Corpus = S2ORC) -> pl.DataFrame:
+    from accelscan.meta import paper_years
+    from accelscan.s3 import make_s3_client, mentions_glob, storage_options
     reg = load_registry()
     so = storage_options()
 
     # mentions are namespaced by the registry version at EXTRACTION time,
     # which may lag the current registry (spec/model additions don't require
     # re-running the LLM) — discover it rather than assuming reg.version
-    glob = mentions_glob(model_tag, prompt_version, mentions_version)
+    glob = mentions_glob(model_tag, prompt_version, mentions_version, corpus=corpus)
     m = (pl.scan_parquet(glob, storage_options=so)
          .filter((pl.col('status') == 'ok') & (pl.col('usage_context') == USED))
-         .select('corpusid', 'model_normalized', 'device_count',
+         .select(corpus.key, 'model_normalized', 'device_count',
                  'device_count_basis', 'memory_gb')
          .collect())
     if limit:
@@ -147,17 +150,14 @@ def build(model_tag: str, prompt_version: str, count_policy: str,
     m = canonicalize_column(m, reg)
     m = m.filter(pl.col('canonical_model').is_not_null())
 
-    years = (pl.scan_parquet(f's3://{BUCKET}/{PAPERS_PREFIX}*.parquet', storage_options=so)
-             .select('corpusid', 'year')
-             .filter(pl.col('corpusid').is_in(m['corpusid'].unique().to_list()))
-             .collect())
-    m = m.join(years, on='corpusid', how='left')
+    years = paper_years(corpus, m.select(corpus.key).unique(), so, make_s3_client())
+    m = m.join(years, on=corpus.key, how='left')
     m = winsorize_counts(m, policy=count_policy)
     m = m.filter(pl.col('n_dev').is_not_null())
 
-    cap = paper_capacity(m, spec_frame(reg))
+    cap = paper_capacity(m, spec_frame(reg), key=corpus.key)
     ext_v = glob.split('/mentions/')[1].split('/')[0]
-    return cap.join(years, on='corpusid', how='left').with_columns(
+    return cap.join(years, on=corpus.key, how='left').with_columns(
         count_policy=pl.lit(count_policy),
         spec_registry_version=pl.lit(reg.version),      # specs used here
         mentions_registry_version=pl.lit(ext_v))        # extraction-time
@@ -172,10 +172,12 @@ def main() -> None:
     ap.add_argument('--mentions-version', help='registry version of the mentions to read '
                     '(default: highest available on S3)')
     ap.add_argument('--local-out', help='dev: write parquet locally instead of S3')
+    ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
     args = ap.parse_args()
+    c = get_corpus(args.corpus)
 
     cap = build(args.model_tag, args.prompt_version, args.count_policy,
-                args.limit, args.mentions_version)
+                args.limit, args.mentions_version, c)
     n = cap.height
     print(f'{n:,} papers with reported capacity', file=sys.stderr)
     for axis in AXES:
@@ -191,8 +193,8 @@ def main() -> None:
         from accelscan.registry import load_registry as _lr
         from accelscan.s3 import make_s3_client
         rv = _lr().version
-        key = (f'{OUT_PREFIX}/capacity/{rv}/{args.prompt_version}/{args.model_tag}'
-               f'/paper_capacity_{args.count_policy}.parquet')
+        key = capacity_key(c, rv, args.prompt_version, args.model_tag,
+                           args.count_policy)
         buf = io.BytesIO(); cap.write_parquet(buf)
         make_s3_client().put_object(Bucket=BUCKET, Key=key, Body=buf.getvalue())
         print(f'wrote s3://{BUCKET}/{key}', file=sys.stderr)

@@ -1,0 +1,24 @@
+#!/bin/bash -l
+#SBATCH --time=2:00:00
+#SBATCH -p msismall
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+# arXiv category/title/abstract snapshot -> parquet on MSI S3. Supplies `field`
+# (arXiv's own taxonomy) and the abstracts the topic pipeline needs. Year is NOT
+# taken from here -- it comes free from the arXiv id.
+#
+# Fetch the snapshot first (free, CC0, ~5.4 GB):
+#   kaggle datasets download -d Cornell-University/arxiv -p $MSIPROJECT/gebhart/arxiv
+#   unzip -o $MSIPROJECT/gebhart/arxiv/arxiv.zip -d $MSIPROJECT/gebhart/arxiv
+export PYTHONUNBUFFERED=TRUE
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+python -m accelscan.scripts.build_arxiv_metadata \
+  --input $MSIPROJECT/gebhart/arxiv/arxiv-metadata-oai-snapshot.json --upload

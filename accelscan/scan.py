@@ -21,6 +21,7 @@ import gzip
 import io
 import sys
 import time
+from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,19 +32,26 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from accelscan.config import (BUCKET, GATE_WINDOW_CHARS,
                               MAX_PASSAGES_GENERIC_ONLY,
-                              MAX_PASSAGES_MODEL_SPECIFIC, OUT_PREFIX,
+                              MAX_PASSAGES_MODEL_SPECIFIC,
                               PASSAGE_CHAR_CAP, S2ORC_PREFIX)
+from accelscan.paths import S2ORC, Corpus, candidates_parts, inventory_parts
 from accelscan.records import Paragraph, parse_body
 from accelscan.registry import CompiledRegistry, Match, load_registry
 
+# `paper_id` is the corpus-independent key (str(corpusid) for S2ORC,
+# 'arxiv:2301.01234' for arXiv, whose ids are strings); `corpusid` stays for the
+# S2ORC joins and is null for arXiv. NOTE: these dicts are consumed with
+# orient='row', so the row dicts below must be built in this exact key order.
 INVENTORY_SCHEMA = {
-    'corpusid': pl.Int64, 'shard_id': pl.Utf8, 'has_body': pl.Boolean,
+    'paper_id': pl.Utf8, 'corpusid': pl.Int64,
+    'shard_id': pl.Utf8, 'has_body': pl.Boolean,
     'body_chars': pl.Int32, 'n_paragraphs': pl.Int32,
     'is_candidate': pl.Boolean, 'n_candidate_passages': pl.Int32,
     'passages_truncated': pl.Boolean,
 }
 CANDIDATE_SCHEMA = {
-    'passage_id': pl.Utf8, 'corpusid': pl.Int64, 'shard_id': pl.Utf8,
+    'passage_id': pl.Utf8, 'paper_id': pl.Utf8, 'corpusid': pl.Int64,
+    'shard_id': pl.Utf8,
     'para_idx': pl.Int32, 'passage_text': pl.Utf8, 'section_header': pl.Utf8,
     'matched_models': pl.List(pl.Utf8), 'matched_surfaces': pl.List(pl.Utf8),
     'match_starts': pl.List(pl.Int32), 'match_ends': pl.List(pl.Int32),
@@ -70,14 +78,29 @@ def _assemble_passage(paras: list[Paragraph], i: int,
 
 
 def scan_record(record: dict, reg: CompiledRegistry, shard_id: str) -> PaperScan:
+    """S2ORC adapter: pull id + paragraphs off a record, then scan generically."""
     corpusid = record.get('corpusid')
     paras = parse_body(record)
     body = record.get('body') or {}
     body_text = body.get('text') or '' if isinstance(body, dict) else ''
+    return scan_paragraphs(paras, reg, paper_id=str(corpusid), corpusid=corpusid,
+                           shard_id=shard_id, body_chars=len(body_text))
 
+
+def scan_paragraphs(paras: list[Paragraph], reg: CompiledRegistry, *,
+                    paper_id: str, corpusid: int | None, shard_id: str,
+                    body_chars: int) -> PaperScan:
+    """Corpus-agnostic core: paragraphs in, inventory + candidate rows out.
+
+    Owns everything that defines the measurement -- per-paragraph matching with
+    +/-GATE_WINDOW_CHARS neighbour context, paper-level gate rescue, the
+    passage cap, passage assembly and match-offset rebasing -- so every corpus
+    is measured by identical code. Callers supply only the id and paragraphs.
+    """
     inv = {
-        'corpusid': corpusid, 'shard_id': shard_id, 'has_body': bool(body_text),
-        'body_chars': len(body_text), 'n_paragraphs': len(paras),
+        'paper_id': paper_id, 'corpusid': corpusid,
+        'shard_id': shard_id, 'has_body': bool(body_chars),
+        'body_chars': body_chars, 'n_paragraphs': len(paras),
         'is_candidate': False,
         'n_candidate_passages': 0, 'passages_truncated': False,
     }
@@ -114,7 +137,8 @@ def scan_record(record: dict, reg: CompiledRegistry, shard_id: str) -> PaperScan
     for i, ms in kept_per_para[:cap]:
         text, offset = _assemble_passage(paras, i, ms)
         scan.candidates.append({
-            'passage_id': f'{corpusid}:{paras[i].idx}',
+            'passage_id': f'{paper_id}:{paras[i].idx}',
+            'paper_id': paper_id,
             'corpusid': corpusid, 'shard_id': shard_id, 'para_idx': paras[i].idx,
             'passage_text': text, 'section_header': paras[i].section,
             'matched_models': [m.model_id for m in ms],
@@ -128,15 +152,10 @@ def scan_record(record: dict, reg: CompiledRegistry, shard_id: str) -> PaperScan
     return scan
 
 
-def scan_stream(lines, reg: CompiledRegistry,
-                shard_id: str) -> tuple[pl.DataFrame, pl.DataFrame]:
+def frames_from_scans(scans: Iterable[PaperScan]) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """(inventory, candidates) frames from per-paper scans. Corpus-agnostic."""
     inv_rows, cand_rows = [], []
-    for line in lines:
-        try:
-            record = orjson.loads(line)
-        except Exception:
-            continue
-        s = scan_record(record, reg, shard_id)
+    for s in scans:
         inv_rows.append(s.inventory)
         cand_rows.extend(s.candidates)
     inv = pl.DataFrame(inv_rows, schema=INVENTORY_SCHEMA, orient='row') if inv_rows \
@@ -146,17 +165,58 @@ def scan_stream(lines, reg: CompiledRegistry,
     return inv, cand
 
 
+def scan_stream(lines, reg: CompiledRegistry,
+                shard_id: str) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """S2ORC gzip-JSONL stream -> frames. arXiv has its own driver (arxiv_scan)."""
+    def _scans():
+        for line in lines:
+            try:
+                record = orjson.loads(line)
+            except Exception:
+                continue
+            yield scan_record(record, reg, shard_id)
+    return frames_from_scans(_scans())
+
+
 # ---------------------------------------------------------------------------
 # Shard workers
 # ---------------------------------------------------------------------------
 
-def _out_keys(shard_id: str, registry_version: str) -> dict[str, str]:
-    base = f'{OUT_PREFIX}/candidates/{registry_version}'
+def _out_keys(shard_id: str, registry_version: str,
+              corpus: Corpus = S2ORC) -> dict[str, str]:
+    parts = candidates_parts(corpus, registry_version)
     return {
-        'inventory': f'{OUT_PREFIX}/inventory/parts/{shard_id}.parquet',
-        'candidates': f'{base}/parts/{shard_id}.parquet',
-        'done': f'{base}/parts/{shard_id}.done',
+        'inventory': f'{inventory_parts(corpus)}/{shard_id}.parquet',
+        'candidates': f'{parts}/{shard_id}.parquet',
+        'done': f'{parts}/{shard_id}.done',
     }
+
+
+def write_shard_outputs(client, shard_id: str, registry_version: str,
+                        inv: pl.DataFrame, cand: pl.DataFrame,
+                        corpus: Corpus = S2ORC, done_body: bytes = b'') -> None:
+    """Upload one shard's outputs, then its `.done` marker last.
+
+    Marker-last ordering is what makes a crash mid-upload safe: the shard simply
+    re-runs and overwrites. `done_body` lets a caller stamp provenance in the
+    marker (arXiv stores the manifest md5 so a re-issued tar isn't skipped).
+    """
+    keys = _out_keys(shard_id, registry_version, corpus)
+    for name, df in [('inventory', inv), ('candidates', cand)]:
+        buf = io.BytesIO()
+        df.write_parquet(buf)
+        client.put_object(Bucket=BUCKET, Key=keys[name], Body=buf.getvalue())
+    client.put_object(Bucket=BUCKET, Key=keys['done'], Body=done_body)
+
+
+def todo_shards(shard_ids: list[str], registry_version: str, client,
+                corpus: Corpus = S2ORC) -> list[str]:
+    """Shard ids without a `.done` marker, in the given order."""
+    from accelscan.s3 import list_keys
+    prefix = f'{candidates_parts(corpus, registry_version)}/'
+    done = {Path(k).name.removesuffix('.done')
+            for k in list_keys(prefix, suffix='.done', client=client)}
+    return [s for s in shard_ids if s not in done]
 
 
 def process_s3_shard(key: str, registry_version: str) -> str:
@@ -177,12 +237,7 @@ def process_s3_shard(key: str, registry_version: str) -> str:
     with gzip.open(io.BytesIO(fetch())) as f:
         inv, cand = scan_stream(f, reg, shard_id)
 
-    keys = _out_keys(shard_id, registry_version)
-    for name, df in [('inventory', inv), ('candidates', cand)]:
-        buf = io.BytesIO()
-        df.write_parquet(buf)
-        client.put_object(Bucket=BUCKET, Key=keys[name], Body=buf.getvalue())
-    client.put_object(Bucket=BUCKET, Key=keys['done'], Body=b'')
+    write_shard_outputs(client, shard_id, registry_version, inv, cand, S2ORC)
     return f'{shard_id}: {inv.height} papers, {cand.height} passages'
 
 
@@ -213,12 +268,10 @@ def run_s3(n_shards: int | None, seed: int, max_workers: int) -> None:
         keys = keys[:n_shards]
 
     client = make_s3_client()
-    done_prefix = f'{OUT_PREFIX}/candidates/{reg.version}/parts/'
-    done = {Path(k).name.removesuffix('.done')
-            for k in list_keys(done_prefix, suffix='.done', client=client)}
-    todo = [k for k in keys if Path(k).name.removesuffix('.gz') not in done]
-    print(f'{len(keys)} shards requested, {len(done)} done, {len(todo)} to scan',
-          file=sys.stderr)
+    by_id = {Path(k).name.removesuffix('.gz'): k for k in keys}
+    todo = [by_id[s] for s in todo_shards(list(by_id), reg.version, client, S2ORC)]
+    print(f'{len(keys)} shards requested, {len(keys) - len(todo)} done, '
+          f'{len(todo)} to scan', file=sys.stderr)
 
     with ProcessPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(process_s3_shard, k, reg.version): k for k in todo}
