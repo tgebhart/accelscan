@@ -219,3 +219,19 @@ cases:
       \end{document}
     contains: ['lists the hardware', 'eight NVIDIA V100 GPU nodes']
     absent: ['80GB', 'Memory &']
+
+  - name: kept-environment-names-do-not-become-words
+    # Found in the arXiv pilot: '\\begin' was deleted as a control word, then brace
+    # stripping turned '{enumerate}' / '{IEEEkeywords}' into prose tokens.
+    tex: |
+      \begin{document}
+      \begin{IEEEkeywords}
+      neural networks, GPU computing
+      \end{IEEEkeywords}
+      We benchmarked the solver on one NVIDIA A100 GPU across the following cases.
+      \begin{enumerate}
+      \item The first configuration used a batch size of 64 for every dataset.
+      \end{enumerate}
+      \end{document}
+    contains: ['NVIDIA A100', 'first configuration used a batch size']
+    absent: ['IEEEkeywords', 'enumerate', 'begin', 'item ']

@@ -116,6 +116,10 @@ _ESCAPED_RE = re.compile(r'\\([%&_#$])')
 # reference filter cannot take neighbouring prose down with it.
 _REF_LINE = re.compile(r'(?m)^[ \t]*(\[\d{1,3}\]|\\bibitem)')
 _PARA_SPLIT = re.compile(r'\n\s*\n|\\par\b')
+# Markers of environments we KEEP (itemize, enumerate, abstract, IEEEkeywords...).
+# Without this the generic control-word rule deletes '\begin' and then brace
+# stripping turns '{enumerate}' into the word "enumerate" in the middle of prose.
+_ENV_MARKER = re.compile(r'\\(?:begin|end)\s*\{[^}\n]{1,60}\}(?:\s*\[[^\]\n]{0,80}\])?')
 
 # A paragraph is reference-shaped if it opens like a numbered entry, or is short
 # and carries several bibliographic tells. Final net behind the two bib layers.
@@ -402,6 +406,7 @@ def latex_to_text(src: str) -> tuple[str, dict]:
     s, dropped = _drop_environments(s)
     stats['dropped_envs'] = len(dropped)
     s = _ESCAPED_RE.sub(lambda m: _ESCAPED[m.group(1)], s)
+    s = _ENV_MARKER.sub(' ', s)          # env names must not become words
     s = _strip_math(s)
     s = _mark_sections(s)
     s = _drop_with_args(s)
