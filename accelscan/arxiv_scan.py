@@ -15,7 +15,10 @@ for a trend.
 
 Restartability: one tar = one unit of work, `.done` marker written last and holding
 the manifest md5, so a re-issued tar with an unchanged name is not silently skipped
-(`--verify-md5`).
+(`--verify-md5`). A killed worker breaks the executor rather than the tar, so
+`run_pool` rebuilds the pool and retries the unfinished tars instead of letting the
+rest of the run collapse into FAILED lines; every log line carries `n/total` and a
+rate so a stall shows up in the log and not only in an S3 listing.
 
   python -m accelscan.arxiv_scan --tars 20 --yymm 2301-2312   # pilot
   python -m accelscan.arxiv_scan --dry-run                    # what it would cost
@@ -26,7 +29,8 @@ import argparse
 import io
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import (BrokenExecutor, CancelledError, ProcessPoolExecutor,
+                                as_completed)
 
 import polars as pl
 
@@ -146,6 +150,74 @@ def _todo(entries: list[TarEntry], registry_version: str, client,
     return out
 
 
+def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
+             verify_md5: bool = False, max_rounds: int = 6) -> tuple[int, int]:
+    """Scan `todo` in a process pool, rebuilding the pool if it breaks. -> (ok, failed).
+
+    A per-tar exception is logged and skipped -- one lost tar out of thousands is
+    not worth stopping for. But a worker *killed* (the OOM killer, most often, when
+    too many tar streams are in flight at once) breaks the executor itself, and then
+    every future still queued raises `BrokenProcessPool`. Treating that like a tar
+    failure would burn the whole remaining run in a burst of FAILED lines and exit
+    with status 0 -- which is exactly how the 2026-07-31 run died silently. So a
+    broken pool retries its unfinished tars in a fresh pool at half the width,
+    on the theory that whatever killed a worker was contention.
+
+    Re-running a tar is safe and cheap in the only sense that matters: a killed
+    worker wrote no `.done` marker, so nothing is double-counted, and only the tars
+    that genuinely never returned are re-downloaded.
+    """
+    total = len(todo)
+    pending, workers, ok, failed = list(todo), max_workers, 0, 0
+    t0 = time.time()
+    for round_no in range(1, max_rounds + 1):
+        if not pending:
+            break
+        if round_no > 1:
+            print(f'-- round {round_no}: pool broke, retrying {len(pending)} tars '
+                  f'with {workers} workers', file=sys.stderr)
+        retry, broke = [], False
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(process_tar, e, registry_version, verify_md5): e
+                       for e in pending}
+            for fut in as_completed(futures):
+                entry = futures[fut]
+                try:
+                    msg = fut.result()
+                except (BrokenExecutor, CancelledError):
+                    retry.append(entry)          # worker died: the tar never ran
+                    broke = True
+                    continue
+                except Exception as exc:         # one lost tar must not stop the run
+                    failed += 1
+                    print(f'[{ok + failed}/{total}] FAILED {entry.shard_id}: {exc!r}',
+                          file=sys.stderr)
+                    continue
+                ok += 1
+                print(f'[{ok + failed}/{total}] {msg}  |  {_pace(ok + failed, total, t0)}',
+                      file=sys.stderr)
+        pending = retry            # empty on a clean round, so nothing is left over
+        if not broke:
+            break
+        workers = max(2, workers // 2)
+    if pending:
+        failed += len(pending)
+        print(f'giving up on {len(pending)} tars after {max_rounds} rounds; '
+              f'their .done markers are absent, so re-running picks them up',
+              file=sys.stderr)
+    return ok, failed
+
+
+def _pace(n: int, total: int, t0: float) -> str:
+    """'9.6 tars/min, eta 9.9h' -- so a stall is visible in the log, not only in S3."""
+    mins = (time.time() - t0) / 60
+    if mins < 0.05 or not n:
+        return ''                  # too early to divide by; would print nonsense
+    rate = n / mins
+    eta = (total - n) / rate / 60
+    return f'{rate:.1f} tars/min, eta {eta:.1f}h'
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--tars', type=int, help='cap the number of tars (pilot)')
@@ -194,14 +266,10 @@ def main() -> None:
     if not in_arxiv_region() and not args.yes_i_know:
         ap.error('refusing to pay egress outside us-east-1; pass --yes-i-know to override')
 
-    with ProcessPoolExecutor(max_workers=args.max_workers) as ex:
-        futures = {ex.submit(process_tar, e, reg.version, args.verify_md5): e
-                   for e in todo}
-        for fut in as_completed(futures):
-            try:
-                print(fut.result(), file=sys.stderr)
-            except Exception as exc:          # one lost tar must not stop the run
-                print(f'FAILED {futures[fut].shard_id}: {exc!r}', file=sys.stderr)
+    ok, failed = run_pool(todo, reg.version, args.max_workers, args.verify_md5)
+    print(f'{ok} tars scanned, {failed} failed', file=sys.stderr)
+    if failed:
+        raise SystemExit(1)
 
 
 if __name__ == '__main__':

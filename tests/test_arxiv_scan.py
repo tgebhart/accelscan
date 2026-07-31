@@ -6,6 +6,7 @@ Uses an in-memory tar behind a non-seekable shim; no network, no S3.
 import gzip
 import io
 import tarfile
+import time
 
 import polars as pl
 import pytest
@@ -116,3 +117,104 @@ def test_old_style_ids_flow_through(reg, entry):
     assert inv['paper_id'].to_list() == ['arxiv:hep-th/9901001']
     assert stats.row(0, named=True)['year'] == 1999
     assert cand['passage_id'][0].startswith('arxiv:hep-th/9901001:')
+
+
+# --- run_pool: a killed worker must not burn the rest of the run -----------------
+#
+# The 2026-07-31 full-history run died here: one worker was killed, every queued
+# future then raised BrokenProcessPool, and the old loop logged them all as tar
+# failures and exited 0 with ~5,600 tars unscanned. These tests pin the retry.
+
+def _entries(n: int) -> list[TarEntry]:
+    return [TarEntry(filename=f'src/arXiv_src_2301_{i:03d}.tar', seq_num=i, yymm='2301',
+                     num_items=1, first_item='x', last_item='y', size=1, md5sum='m',
+                     timestamp='2023-02-01')
+            for i in range(1, n + 1)]
+
+
+def _fake_pool(monkeypatch, fate):
+    """Swap the process pool for a synchronous one; `fate(entry)` decides each tar.
+
+    A real ProcessPoolExecutor would pickle `process_tar` into a child, where a
+    monkeypatch is invisible, so the executor itself is what gets faked. Records the
+    width of every pool built, which is how the halving is asserted.
+    """
+    from concurrent.futures import Future
+    widths: list[int] = []
+
+    class FakeExec:
+        def __init__(self, max_workers):
+            widths.append(max_workers)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, entry, *rest):
+            fut = Future()
+            try:
+                fut.set_result(fate(entry))
+            except BaseException as exc:            # noqa: BLE001 - mirrors a worker
+                fut.set_exception(exc)
+            return fut
+
+    monkeypatch.setattr('accelscan.arxiv_scan.ProcessPoolExecutor', FakeExec)
+    return widths
+
+
+def test_broken_pool_retries_unfinished_tars_at_half_width(monkeypatch):
+    from concurrent.futures.process import BrokenProcessPool
+    from accelscan.arxiv_scan import run_pool
+    seen: list[str] = []
+
+    def fate(entry):
+        seen.append(entry.shard_id)
+        # the pool breaks the first time each of the last two tars is submitted
+        if entry.seq_num > 2 and seen.count(entry.shard_id) == 1:
+            raise BrokenProcessPool('A process in the process pool was terminated')
+        return f'{entry.shard_id}: ok'
+
+    widths = _fake_pool(monkeypatch, fate)
+    ok, failed = run_pool(_entries(4), '0.2.0', max_workers=8)
+    assert (ok, failed) == (4, 0)                     # nothing lost
+    assert widths == [8, 4]                           # rebuilt once, half as wide
+    assert seen.count('arXiv_src_2301_003') == 2      # only the broken tars retried
+    assert seen.count('arXiv_src_2301_001') == 1
+
+
+def test_one_bad_tar_is_logged_and_not_retried(monkeypatch):
+    from accelscan.arxiv_scan import run_pool
+    seen: list[str] = []
+
+    def fate(entry):
+        seen.append(entry.shard_id)
+        if entry.seq_num == 2:
+            raise OSError('read timeout on the tar stream')
+        return f'{entry.shard_id}: ok'
+
+    widths = _fake_pool(monkeypatch, fate)
+    ok, failed = run_pool(_entries(3), '0.2.0', max_workers=4)
+    assert (ok, failed) == (2, 1)
+    assert widths == [4]                              # no rebuild for a tar failure
+    assert len(seen) == 3
+
+
+def test_persistent_breakage_gives_up_and_reports_failure(monkeypatch):
+    from concurrent.futures.process import BrokenProcessPool
+    from accelscan.arxiv_scan import run_pool
+
+    def fate(entry):
+        raise BrokenProcessPool('killed again')
+
+    widths = _fake_pool(monkeypatch, fate)
+    ok, failed = run_pool(_entries(2), '0.2.0', max_workers=8, max_rounds=3)
+    assert (ok, failed) == (0, 2)                     # counted, so main() exits 1
+    assert widths == [8, 4, 2]
+
+
+def test_pace_reports_a_rate_and_eta():
+    from accelscan.arxiv_scan import _pace
+    out = _pace(60, 600, time.time() - 60)            # 60 tars in one minute
+    assert 'tars/min' in out and 'eta' in out
