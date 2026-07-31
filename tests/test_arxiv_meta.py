@@ -10,7 +10,8 @@ import json
 import polars as pl
 import pytest
 
-from accelscan.arxiv_meta import (archive_of, field_of, load_category_map,
+from accelscan.arxiv_meta import (archive_of, category_name, field_of,
+                                 load_category_map, load_taxonomy,
                                  primary_category_of)
 from accelscan.arxiv_source import OLD_ARCHIVES
 from accelscan.scripts.build_arxiv_metadata import SCHEMA, build, parse_record
@@ -40,6 +41,39 @@ def test_subject_class_is_reduced_to_its_archive():
     assert archive_of('astro-ph.GA') == 'astro-ph'
     assert archive_of('hep-th') == 'hep-th'
     assert archive_of('') == ''
+
+
+def test_taxonomy_is_the_real_one():
+    """Generated from arxiv.org/category_taxonomy: 8 groups, 155 subject classes."""
+    tx = load_taxonomy()
+    assert tx['version'] == '2.0'
+    assert set(tx['groups']) == {
+        'Computer Science', 'Economics', 'Electrical Engineering and Systems Science',
+        'Mathematics', 'Physics', 'Quantitative Biology', 'Quantitative Finance',
+        'Statistics'}
+    assert len(tx['categories']) == 155
+    assert len(tx['groups']['Physics']) == 13      # Physics is the multi-archive group
+    for code in ('cs.LG', 'astro-ph.GA', 'hep-th', 'q-bio.NC', 'eess.SP', 'econ.EM'):
+        assert code in tx['categories'], code
+
+
+def test_display_names_for_figure_labels():
+    assert category_name('cs.LG') == 'Machine Learning'
+    assert category_name('cs.DC') == 'Distributed, Parallel, and Cluster Computing'
+    assert category_name('astro-ph.GA') == 'Astrophysics of Galaxies'
+    assert category_name('hep-th') == 'High Energy Physics - Theory'
+    assert category_name('cond-mat.mtrl-sci') == 'Materials Science'
+    assert category_name('nonsense.XX') is None
+
+
+def test_legacy_archives_resolve_through_their_modern_archive():
+    tx = load_taxonomy()
+    assert tx['legacy']['cmp-lg'] == 'cs'
+    assert tx['legacy']['supr-con'] == 'cond-mat'
+    assert tx['legacy']['q-alg'] == 'math'
+    # a 1995 cmp-lg paper must land in the same field as a modern cs.CL one
+    assert field_of('cmp-lg') == field_of('cs.CL') == 'Computer Science'
+    assert field_of('mtrl-th') == field_of('cond-mat.mtrl-sci') == 'Physics'
 
 
 def test_field_labels():
