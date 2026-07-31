@@ -125,7 +125,9 @@ sbatch slurm/arxiv_pilot_scan.txt
 #     (the same run from MSI would be ~$260 of AWS egress; arxiv_scan refuses
 #     to start outside us-east-1 without --yes-i-know)
 python -m accelscan.arxiv_scan --dry-run           # bytes + bill, downloads nothing
-bash scripts/ec2_stage1_bootstrap.sh               # as EC2 user-data, one YYMM slice each
+# EC2 user-data, one instance per YYMM slice; clones this repo (private -> needs
+# GITHUB_TOKEN or a deploy key) and re-checks the region before spending anything:
+GITHUB_TOKEN=<pat> YYMM_RANGE=9108-0512 bash scripts/ec2_stage1_bootstrap.sh
 
 # 2. repack + LLM + analytics, all on MSI
 sbatch slurm/arxiv_stage2_infer.txt                # set --array from repack's manifest
