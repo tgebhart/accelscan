@@ -1,12 +1,17 @@
-# LaTeX -> paragraph conversion cases. One entry per failure mode that would
-# corrupt the measurement; every bug found in development becomes a case here.
+# Raw-LaTeX search cases. The matcher reads the SOURCE; there is no de-TeXing
+# (see accelscan/latex.py for why). So these cases pin two things:
+#   - recall: the hardware sentence must survive, `$8$` must keep its digit,
+#     every text member is searched, bibliographies are still excluded;
+#   - the ACCEPTED contamination: captions, listings, tables, comments and math
+#     markup are searched, and appear in `contains` on purpose. Moving one of
+#     those back to `absent` is a deliberate policy change, not a bug fix.
 #
 # Fields: name, files{path: tex} (or `tex` for a single main.tex),
 #   contains / absent   -- substrings that must (not) appear in the joined output
 #   sections            -- exact list of distinct section labels, in order
 #   n_paragraphs        -- exact paragraph count, when the split itself is the point
 cases:
-  - name: comment-stripped-but-escaped-percent-kept
+  - name: comments-are-searched-in-raw-source
     # TeX's real rule: '%' kills the rest of the line AND the newline; '\%' is a
     # literal percent. Getting this wrong either glues words or invents breaks.
     tex: |
@@ -15,8 +20,8 @@ cases:
       % a stray comment naming an A100 that must never be extracted
       Utilisation reached 95\% of peak throughput during the long training run.
       \end{document}
-    contains: ['NVIDIA V100', '95% of peak']
-    absent: ['A100', 'stray comment']
+    # ACCEPTED: comments are searched, so the commented A100 counts as a mention.
+    contains: ['NVIDIA V100', '95\% of peak', 'A100', 'stray comment']
 
   - name: numeric-inline-math-keeps-device-count
     # "$8$ V100s" must not become " V100s": device_count is a headline estimand.
@@ -31,10 +36,11 @@ cases:
       \begin{document}
       We set $\alpha$ to a small value and trained on one NVIDIA A100 GPU here.
       \end{document}
+    # symbolic inline math still becomes a space, so words cannot glue
     contains: ['NVIDIA A100']
-    absent: ['alpha', 'toa', 'and$']
+    absent: ['toa', 'and$']
 
-  - name: display-math-dropped
+  - name: display-math-left-in-place
     tex: |
       \begin{document}
       The loss is defined below and optimised on a single NVIDIA A100 GPU card.
@@ -42,10 +48,10 @@ cases:
       \[ R = \frac{1}{n} \]
       Convergence took twelve hours of training on that same accelerator card.
       \end{document}
-    contains: ['NVIDIA A100', 'Convergence took twelve hours']
-    absent: ['\sum', 'gamma', 'frac']
+    # ACCEPTED: display math is left in the text; it never names hardware
+    contains: ['NVIDIA A100', 'Convergence took twelve hours', '\sum']
 
-  - name: figure-and-caption-dropped-together
+  - name: figure-caption-is-searched
     # Floats go with their captions, for comparability with S2ORC body text.
     tex: |
       \begin{document}
@@ -56,10 +62,11 @@ cases:
       \end{figure}
       Every reported number comes from the same hardware configuration as above.
       \end{document}
-    contains: ['institutional GPU cluster', 'Every reported number']
-    absent: ['H100', 'arch.pdf', 'Our pipeline']
+    # ACCEPTED and the biggest upward bias: a caption naming an H100 makes this
+    # an H100 paper at the regex stage. usage_context is the downstream defence.
+    contains: ['institutional GPU cluster', 'Every reported number', 'H100']
 
-  - name: nested-same-name-environment-fully-dropped
+  - name: nested-environments-need-no-handling
     # A non-greedy regex would stop at the inner \end{align} and leak the tail.
     tex: |
       \begin{document}
@@ -70,10 +77,10 @@ cases:
       \end{align}
       The remaining text after the equation block must survive intact for us.
       \end{document}
-    contains: ['NVIDIA V100', 'remaining text after the equation block']
-    absent: ['x &= 1', 'aligned']
+    # ACCEPTED: environments are not removed, so nesting cannot be got wrong
+    contains: ['NVIDIA V100', 'remaining text after the equation block', 'x &= 1']
 
-  - name: verbatim-and-listing-dropped
+  - name: listings-are-searched
     tex: |
       \begin{document}
       The reference implementation was benchmarked on one NVIDIA A100 GPU node.
@@ -85,8 +92,9 @@ cases:
       \end{verbatim}
       Results are averaged over five random seeds for every configuration here.
       \end{document}
-    contains: ['NVIDIA A100', 'averaged over five random seeds']
-    absent: ['K80', 'GTX 1080', 'nvidia-smi']
+    # ACCEPTED: code listings are searched, so a K80 in a comment inside a
+    # snippet counts. Real effect, knowingly taken.
+    contains: ['NVIDIA A100', 'averaged over five random seeds', 'K80', 'GTX 1080']
 
   - name: thebibliography-environment-dropped
     tex: |
@@ -140,14 +148,16 @@ cases:
     absent: ['K80', 'renderer']
     sections: ['Setup']
 
-  - name: zero-arg-macro-expanded
+  - name: zero-arg-macro-not-expanded
     tex: |
       \newcommand{\ourmodel}{FooNet}
       \begin{document}
       We trained \ourmodel{} for one week on a single NVIDIA V100 GPU instance.
       \end{document}
-    contains: ['FooNet', 'NVIDIA V100']
-    absent: ['ourmodel']
+    # KNOWN RECALL GAP: macro bodies are not expanded, so a model name defined as
+    # \newcommand{\ourmodel}{FooNet} is invisible. Hardware names in macros are rare.
+    contains: ['NVIDIA V100', 'ourmodel']
+    absent: ['FooNet']
 
   - name: section-hierarchy-and-paragraph-heading
     # \paragraph{} is a real heading in ML papers ("Implementation details").
@@ -171,6 +181,8 @@ cases:
       Our model was trained on a single NVIDIA V100 GPU for seventy two hours.
       [12] B. Author et al. GPU-accelerated solvers on the K80. Proc. IEEE, pp. 3-9, 2015.
       \end{document}
+    # still enforced: reference-shaped paragraphs are dropped, so a cited title
+    # saying "GPU-accelerated ..." does not become a mention
     contains: ['NVIDIA V100']
     absent: ['K80', 'B. Author']
 
@@ -187,8 +199,9 @@ cases:
       and \url{https://developer.nvidia.com/cuda} for the toolkit documentation.
       \end{document}
     contains: ['the vendor page', 'developer.nvidia.com/cuda', 'example.com/page']
+    # (raw source: both the href target and its text are simply present)
 
-  - name: accent-macros-do-not-eat-control-words
+  - name: accents-and-control-words-untouched
     # Regression: brace-optional letter accents turned \cite{} into 'ite{}'.
     tex: |
       \begin{document}
@@ -197,8 +210,9 @@ cases:
       \end{document}
     # pylatexenc resolves accents to real unicode (Erdős, not the old ASCII Erdos),
     # which is strictly better and irrelevant to matching: hardware names are ASCII.
-    contains: ['NVIDIA A100', 'Erdős', 'René']
-    absent: ['ite{smith2020}', 'ef{eq:1}', 'sepackage']
+    # accents stay as source; nothing rewrites control words, so the class of bug
+    # this case was written for cannot occur at all any more
+    contains: ['NVIDIA A100', 'Erd\H{o}s', 'cite{smith2020}']
 
   - name: latin1-bytes-decode
     tex_latin1: |
@@ -215,7 +229,7 @@ cases:
       Timings for both platforms appear in the discussion section of this paper.
     contains: ['NVIDIA GPU', 'Timings for both platforms']
 
-  - name: tabular-dropped-but-surrounding-prose-kept
+  - name: spec-table-is-searched
     tex: |
       \begin{document}
       Table~\ref{tab:hw} lists the hardware used for every reported experiment.
@@ -224,10 +238,10 @@ cases:
       \end{tabular}
       We now turn to the scaling analysis on our eight NVIDIA V100 GPU nodes.
       \end{document}
-    contains: ['lists the hardware', 'eight NVIDIA V100 GPU nodes']
-    absent: ['80GB', 'Memory &']
+    # ACCEPTED: a hardware spec table is searched, so its A100/80GB count
+    contains: ['lists the hardware', 'eight NVIDIA V100 GPU nodes', '80GB']
 
-  - name: kept-environment-names-do-not-become-words
+  - name: environment-names-appear-as-tokens
     # Found in the arXiv pilot: '\\begin' was deleted as a control word, then brace
     # stripping turned '{enumerate}' / '{IEEEkeywords}' into prose tokens.
     tex: |
@@ -240,8 +254,9 @@ cases:
       \item The first configuration used a batch size of 64 for every dataset.
       \end{enumerate}
       \end{document}
-    contains: ['NVIDIA A100', 'first configuration used a batch size']
-    absent: ['IEEEkeywords', 'enumerate', 'begin', 'item ']
+    # ACCEPTED: environment names appear as source tokens. Harmless -- they are
+    # not hardware aliases, so they cannot create a false mention.
+    contains: ['NVIDIA A100', 'first configuration used a batch size', 'IEEEkeywords']
 
   - name: unbalanced-brace-after-cite-terminates
     # THE bug that killed two full-history runs: `_drop_with_args` looped

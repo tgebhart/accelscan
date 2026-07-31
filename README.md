@@ -141,49 +141,43 @@ LaTeX conversion stats (`encoding`, `body_found`, `includes_missing`, `had_bibli
 converter that degrades across eras manufactures exactly the upward trend this
 project measures.
 
-### LaTeX conversion
+### LaTeX handling: the matcher reads the raw source
 
-`accelscan/latex.py` delegates the parsing to **pylatexenc** and supplies only policy.
-It previously contained a hand-rolled de-TeXer, which **hung two full-history runs**:
-`_drop_with_args` looped on `_braced`, and `_braced` reports an unbalanced group by
-returning its own start index, so an unclosed `\cite{` — ordinary in truncated arXiv
-source — spun forever and consumed one worker per bad paper. 32 fixtures had not caught
-it; a `py-spy dump` on a live worker named the line in seconds.
+`accelscan/latex.py` does **no TeX parsing**. Hardware names are ASCII literals that
+appear verbatim in source (`NVIDIA V100`, `GPU`, `CUDA`), so the matcher reads the
+`.tex` directly. Two parsing designs preceded this — a hand-rolled de-TeXer that hung
+two full-history runs on an unbalanced `\cite{`, then pylatexenc — and measuring raw
+search against the fixture suite showed the benefit of parsing was confined to
+*exclusions*, not text quality: 30 contract violations, all of them captions, listings,
+tables, comments or math markup contributing mentions, plus one recall loss where an
+unresolved `\input` hid the methods file.
 
-**Why pylatexenc rather than pandoc**, measured: pandoc is the better parser (real AST,
-subprocess-isolated, 5–26 ms) but **rejects** broken input with exit 64 — unbalanced
-`\cite{`, unclosed `\begin{align}`, and 1990s `\documentstyle` files with no
-`\begin{document}` all fail, and truncate-at-the-reported-error-line does not converge
-because pandoc reports where it *notices* (EOF), not where the brace is. Rejection here
-correlates with era, so text quality would decay going backwards in time and manufacture
-the very trend this study measures. pylatexenc converts all of those, at 57 ms/paper
-(1.3 h on 36 cores for 3.01M papers).
+**That trade was taken deliberately** (2026-07-31): the bias is upward and lands mostly
+in the any-mention series, `usage_context` already labels a caption or reference as
+not-used-in-this-work, and no parser can hang a worker. 2.15 ms/paper (1.8 core-hours
+for all 3.01M).
 
-This module still owns, all of it policy or plumbing with no TeX grammar in it:
-`\input`/`\include` resolution across tar members; zero-arg `\newcommand` expansion
-(pylatexenc 2 drops user macros, hiding `\newcommand{\ourgpu}{A100}`); **three-layer
-bibliography exclusion** (`.bbl` never read → truncate at a bibliography macro past the
-halfway guard → reference-shape filter), because S2ORC gets that free and arXiv must not
-lose it; floats dropped with their captions for GROBID comparability; display math
-dropped while inline math is kept as text (`math_mode='remove'` would delete `$8$` and
-device counts are a headline estimand); and **block-local brace repair**, which closes a
-group that never closes inside its own paragraph — without it a tokenizer swallows the
-rest of the document into an unclosed argument and every later hardware sentence is lost.
-Two pylatexenc-specific traps are pinned by fixtures: `\href` needs an explicit
-`std_macro('href','{{')` in the *parse* context or conversion raises `IndexError` and the
-paper is dropped, and `\paragraph` needs `*[{` or its title cannot become a section
-heading. Behaviour is pinned by `tests/fixtures/latex_cases.yaml` (29 cases, all green on
-the new engine; two expectations changed deliberately — accents now resolve to real
-unicode, and `\href` targets are kept because vendor domains are signal).
+Five gotchas are kept, each one regex, each a large rather than slight effect:
 
-pylatexenc logs a warning whenever one of *its own* default specs meets a malformed
-usage (`\frac`/`\textfrac` in text mode, seen within the first tar). Those are counted
-into `ingest_stats.convert_warnings` and kept off stderr: across 3M papers they are
-unbounded log volume, a full disk is a third way to stall the run, and the actionable
-quantity is the rate by year, not the individual complaint.
+| | |
+|---|---|
+| all text members concatenated | simpler *and* higher recall than resolving `\input` — the methods section is often its own `.tex`, and an unresolved include loses it entirely (measured: 0 candidates vs 1) |
+| `$8$` → `8` | numeric inline math unwrapped; symbolic becomes a space so words cannot glue. Device counts are a headline estimand |
+| bibliography excluded | `.bbl` never read, truncate at `\begin{thebibliography}` past the halfway guard, reference-shape paragraph filter. Cited *titles* routinely say "GPU-accelerated …" |
+| preamble and post-`\end{document}` dropped | per file, so an included fragment ordered before the root is not discarded |
+| blank-line paragraphs, long ones re-split | TeX's own rule; `PASSAGE_CHAR_CAP` is a character budget |
 
-`arxiv_scan` additionally caps each paper at `--paper-timeout` seconds
-(`skip_reason='timeout'`), so a converter pathology costs one counted row, not a worker.
+**Must be stated in the paper.** arXiv any-mention prevalence is biased upward relative
+to S2ORC, which gets these exclusions free (GROBID drops floats; `bibliography` is a
+separate object). Cross-corpus *levels* were already non-comparable; this widens the gap
+in a known direction, and `reported use` / model-specific series are far better protected
+because the LLM sees the passage. `tests/fixtures/latex_cases.yaml` pins the accepted
+contamination as explicit `contains` assertions, so moving one back to `absent` is a
+visible policy change. A robustness column is cheap if a reviewer asks: rerun the matcher
+over the stored passages with exclusions applied — no LLM, no re-download.
+
+`arxiv_scan` caps each paper at `--paper-timeout` seconds (`skip_reason='timeout'`).
+With no parser left there is nothing to hang, but the guard costs nothing.
 
 ## Versioning note
 

@@ -56,8 +56,8 @@ INGEST_SCHEMA = {
     'encoding': pl.Utf8, 'body_found': pl.Boolean, 'had_bibliography': pl.Boolean,
     'includes_resolved': pl.Int32, 'includes_missing': pl.Int32,
     'macros_expanded': pl.Int32, 'n_ref_paras_filtered': pl.Int32,
-    # pylatexenc complaints per paper, counted rather than logged: the rate by year
-    # is the converter-drift signal, the individual warnings are unactionable noise
+    # kept for the drift audit: 0/None on the raw-source path, but the columns stay
+    # so a future exclusion pass has somewhere to report
     'convert_warnings': pl.Int32, 'convert_error': pl.Utf8,
 }
 
