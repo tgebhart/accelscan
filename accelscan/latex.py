@@ -1,4 +1,4 @@
-"""arXiv LaTeX source -> `records.Paragraph` list, stdlib only.
+r"""arXiv LaTeX source -> `records.Paragraph` list, stdlib only.
 
 Deliberately not a real TeX parser: what the matcher needs is *prose with word
 boundaries*, not semantic fidelity, so this is a pragmatic de-TeXer whose correctness
@@ -26,7 +26,7 @@ Decisions that affect the measurement, all deliberate:
   is a separate object); arXiv must not lose it, or a reference titled
   "GPU-accelerated Monte Carlo..." becomes a false candidate. Layers: `.bbl` files
   are never read; the document is truncated at a bibliography macro occurring past
-  half-way (the position guard stops a preamble `\\bibliographystyle` from
+  half-way (the position guard stops a preamble `\bibliographystyle` from
   decapitating the paper); and any surviving reference-shaped paragraph is dropped.
 - **Floats are dropped with their captions** (figure/table/algorithm/listing), for
   comparability with S2ORC's GROBID body text, which largely excludes them. A
