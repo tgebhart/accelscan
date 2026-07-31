@@ -153,3 +153,27 @@ def test_unpacked_files_flow_into_the_converter():
     paras, stats = latex_to_paragraphs(files)
     assert len(paras) == 1
     assert '4 NVIDIA A100 GPUs' in paras[0].text
+
+
+def test_bib_and_bbl_are_never_surfaced():
+    """A `.bib` is a pure reference database; a `.bbl` is a formatted one.
+
+    Either would turn every cited title into candidate text -- and cited titles say
+    "GPU-accelerated ..." and name specific cards constantly, so this is a large
+    inflation of the mention series, not a slight one. The filter is a *whitelist*
+    (`.tex/.ltx/.txt`), which is the kind of thing that drifts, hence this test.
+    """
+    bib = (b'@article{smith2019,\n title = {GPU-accelerated Monte Carlo on the K80 '
+           b'and Tesla V100 throughput},\n journal = {Proc. IEEE}, year = {2019}\n}\n')
+    bbl = (b'\\begin{thebibliography}{9}\n\\bibitem{x} A. Author. An H100 renderer. '
+           b'Proc. SIGGRAPH, 2023.\n\\end{thebibliography}\n')
+    payload = _tar_bytes({'main.tex': TEX, 'refs.bib': bib, 'Refs.BIB': bib,
+                          'ms.bbl': bbl, 'notes.bib.tex': b'ignored-name-shape'})
+    files, skip = unpack_member('2301.01234.gz', _gz(payload))
+    assert skip == ''
+    assert 'refs.bib' not in files and 'Refs.BIB' not in files, 'bib database surfaced'
+    assert 'ms.bbl' not in files, 'formatted bibliography surfaced'
+    assert 'main.tex' in files
+    blob = b' '.join(files.values())
+    for card in (b'K80', b'V100 throughput', b'H100'):
+        assert card not in blob, f'{card!r} reached the matcher from a bibliography file'
