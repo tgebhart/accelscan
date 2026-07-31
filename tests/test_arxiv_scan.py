@@ -271,3 +271,18 @@ def test_paper_timeout_of_zero_disables_the_guard(reg, entry):
     with open_stream(NonSeekable(payload)) as tf:
         inv, _, stats = scan_tar_stream(tf, entry, reg, {}, paper_timeout=0)
     assert inv.height == 1 and stats['skip_reason'].to_list() == ['']
+
+
+def test_converter_warnings_are_counted_not_logged(reg, entry, capsys):
+    """pylatexenc's own warnings must not reach the run log; 3M papers would flood it."""
+    import logging
+    payload = _tar({'2301/2301.00001.gz': _paper(
+        'We reached \\textfrac of peak throughput on 8 NVIDIA V100 GPUs in every '
+        f'of the configurations tested. {FILLER}')})
+    with open_stream(NonSeekable(payload)) as tf:
+        _, _, stats = scan_tar_stream(tf, entry, reg)
+    row = stats.row(0, named=True)
+    assert row['convert_warnings'] >= 1              # the complaint was recorded
+    assert row['convert_error'] is None              # and did not fail the paper
+    assert not logging.getLogger('pylatexenc').propagate
+    assert 'failed its substitution' not in capsys.readouterr().err

@@ -49,6 +49,7 @@ stats dict alongside its output; those land in the `ingest_stats` product, the o
 way to spot the converter degrading across eras.
 """
 
+import logging
 import re
 from functools import lru_cache
 
@@ -121,6 +122,36 @@ def _section_marker(node, l2tobj=None, **_kw) -> str:
     args = [a for a in (getattr(node.nodeargd, 'argnlist', None) or []) if a is not None]
     title = ' '.join(l2tobj.nodelist_to_text(args[-1:]).split()) if args and l2tobj else ''
     return f'\n\n{SEC_OPEN}{title}{SEC_CLOSE}\n\n'
+
+
+class _WarningCounter(logging.Handler):
+    """Count pylatexenc's warnings instead of letting them reach the run log.
+
+    pylatexenc logs "macro '\\frac' failed its substitution" whenever one of *its own*
+    default specs meets a malformed usage -- `\\frac`, `\\textfrac` and friends were
+    all seen within the first tar. Across 3M papers of author-written TeX that is
+    unbounded stderr, and a full disk is simply a third way to stall the run. The
+    warnings are also not actionable one at a time: the fix is never to chase the
+    next macro, it is to know the rate. So the count goes to `ingest_stats`, where
+    converter drift across eras is already audited, and the log stays readable.
+    """
+
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.n = 0
+
+    def emit(self, record):
+        self.n += 1
+
+
+@lru_cache(maxsize=1)
+def _warning_counter() -> _WarningCounter:
+    handler = _WarningCounter()
+    log = logging.getLogger('pylatexenc')
+    log.handlers = [handler]
+    log.propagate = False
+    log.setLevel(logging.WARNING)
+    return handler
 
 
 @lru_cache(maxsize=1)
@@ -361,7 +392,9 @@ def latex_to_text(src: str) -> tuple[str, dict]:
     Everything between the pre-passes and the post-split is pylatexenc's work.
     """
     stats = {'had_bibliography': False, 'macros_expanded': 0, 'body_found': False,
-             'braces_repaired': 0, 'convert_error': None}
+             'braces_repaired': 0, 'convert_warnings': 0, 'convert_error': None}
+    counter = _warning_counter()
+    warned_before = counter.n
     s = _strip_comments(src)
 
     # Macros are defined in the preamble but must not be *read* as prose, so the
@@ -387,8 +420,10 @@ def latex_to_text(src: str) -> tuple[str, dict]:
         s = _converter().nodelist_to_text(nodes)
     except Exception as exc:              # pylatexenc is lenient, but never trusted
         stats['convert_error'] = type(exc).__name__
+        stats['convert_warnings'] = counter.n - warned_before
         return '', stats
 
+    stats['convert_warnings'] = counter.n - warned_before
     return _REF_LINE.sub(r'\n\n\1', s), stats
 
 

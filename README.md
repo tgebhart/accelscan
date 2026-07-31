@@ -176,6 +176,12 @@ heading. Behaviour is pinned by `tests/fixtures/latex_cases.yaml` (29 cases, all
 the new engine; two expectations changed deliberately — accents now resolve to real
 unicode, and `\href` targets are kept because vendor domains are signal).
 
+pylatexenc logs a warning whenever one of *its own* default specs meets a malformed
+usage (`\frac`/`\textfrac` in text mode, seen within the first tar). Those are counted
+into `ingest_stats.convert_warnings` and kept off stderr: across 3M papers they are
+unbounded log volume, a full disk is a third way to stall the run, and the actionable
+quantity is the rate by year, not the individual complaint.
+
 `arxiv_scan` additionally caps each paper at `--paper-timeout` seconds
 (`skip_reason='timeout'`), so a converter pathology costs one counted row, not a worker.
 

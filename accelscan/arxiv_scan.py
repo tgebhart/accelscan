@@ -56,6 +56,9 @@ INGEST_SCHEMA = {
     'encoding': pl.Utf8, 'body_found': pl.Boolean, 'had_bibliography': pl.Boolean,
     'includes_resolved': pl.Int32, 'includes_missing': pl.Int32,
     'macros_expanded': pl.Int32, 'n_ref_paras_filtered': pl.Int32,
+    # pylatexenc complaints per paper, counted rather than logged: the rate by year
+    # is the converter-drift signal, the individual warnings are unactionable noise
+    'convert_warnings': pl.Int32, 'convert_error': pl.Utf8,
 }
 
 
@@ -73,6 +76,8 @@ def _ingest_row(shard_id: str, paper_id: str | None, arxiv_id: str | None,
         'includes_missing': stats.get('includes_missing'),
         'macros_expanded': stats.get('macros_expanded'),
         'n_ref_paras_filtered': stats.get('n_ref_paras_filtered'),
+        'convert_warnings': stats.get('convert_warnings'),
+        'convert_error': stats.get('convert_error'),
     }
 
 
