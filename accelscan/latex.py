@@ -305,7 +305,14 @@ def _strip_math(s: str) -> str:
 
 
 def _drop_with_args(s: str) -> str:
-    """Drop \\cite{...}, \\label{...}, \\footnote{...} and friends, argument included."""
+    """Drop \\cite{...}, \\label{...}, \\footnote{...} and friends, argument included.
+
+    `_braced` reports an unbalanced group by returning its own start index, so every
+    loop over it must check for progress: `while s[j] == '{': _, j = _braced(s, j)`
+    spins forever on `\\cite{` with no closing brace, which is ordinary truncated
+    arXiv source. That non-termination consumed a worker per bad paper and killed two
+    full-history runs (`unbalanced-brace-*` fixtures pin it).
+    """
     out, pos = [], 0
     pat = re.compile(r'\\([a-zA-Z@]+)\s*\*?')
     for m in pat.finditer(s):
@@ -319,7 +326,10 @@ def _drop_with_args(s: str) -> str:
             k = s.find(']', j)
             j = k + 1 if k != -1 else j
         while j < len(s) and s[j] == '{':
-            _, j = _braced(s, j)
+            _, k = _braced(s, j)
+            if k == j:            # unbalanced: nothing to drop, keep the rest as text
+                break
+            j = k
         out.append(' ')
         pos = j
     out.append(s[pos:])

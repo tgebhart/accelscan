@@ -79,7 +79,48 @@ def _ingest_row(shard_id: str, paper_id: str | None, arxiv_id: str | None,
 STAGES = ('net', 'unpack', 'tex', 'match', 'put')
 
 
-def scan_tar_stream(tf, entry: TarEntry, reg, timings: dict | None = None
+class PaperTimeout(Exception):
+    """One paper exceeded its conversion budget."""
+
+
+def _raise_timeout(signum, frame):
+    raise PaperTimeout
+
+
+class _paper_budget:
+    """Abort a single paper's conversion after `secs`, or do nothing if `secs` is 0.
+
+    Insurance against non-termination, not a performance knob: an unbalanced brace
+    after `\\cite{` used to spin `_drop_with_args` forever, which permanently
+    consumed one worker per bad paper and killed two full-history runs. That bug is
+    fixed and fixtured, but the converter is hand-rolled over adversarial input, so a
+    paper that cannot be converted must degrade to one `skip_reason='timeout'` row
+    (counted in ingest stats, visible in the drift audit) rather than to silence.
+
+    Installs its own SIGALRM handler because the default action for SIGALRM is to
+    kill the process. Only interrupts between bytecodes, so a single runaway C-level
+    regex match would still need the faulthandler watchdog to be seen.
+    """
+
+    def __init__(self, secs: float):
+        self.secs = secs if secs and hasattr(signal, 'SIGALRM') else 0
+        self.prev = None
+
+    def __enter__(self):
+        if self.secs:
+            self.prev = signal.signal(signal.SIGALRM, _raise_timeout)
+            signal.setitimer(signal.ITIMER_REAL, self.secs)
+        return self
+
+    def __exit__(self, *exc):
+        if self.secs:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, self.prev)
+        return False
+
+
+def scan_tar_stream(tf, entry: TarEntry, reg, timings: dict | None = None,
+                    paper_timeout: float = 0
                     ) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     """One open tar stream -> (inventory, candidates, ingest_stats).
 
@@ -115,11 +156,18 @@ def scan_tar_stream(tf, entry: TarEntry, reg, timings: dict | None = None
             ingest.append(_ingest_row(entry.shard_id, paper_id, arxiv_id, skip, {}))
             continue
         c2 = time.perf_counter()
-        paras, stats = latex_to_paragraphs(files)
-        c3 = time.perf_counter()
-        scans.append(scan_paragraphs(
-            paras, reg, paper_id=paper_id, corpusid=None,
-            shard_id=entry.shard_id, body_chars=stats.get('plain_chars') or 0))
+        try:
+            with _paper_budget(paper_timeout):
+                paras, stats = latex_to_paragraphs(files)
+                c3 = time.perf_counter()
+                scan = scan_paragraphs(
+                    paras, reg, paper_id=paper_id, corpusid=None,
+                    shard_id=entry.shard_id, body_chars=stats.get('plain_chars') or 0)
+        except PaperTimeout:
+            t['tex'] += time.perf_counter() - c2
+            ingest.append(_ingest_row(entry.shard_id, paper_id, arxiv_id, 'timeout', {}))
+            continue
+        scans.append(scan)
         t['tex'] += c3 - c2
         t['match'] += time.perf_counter() - c3
         ingest.append(_ingest_row(entry.shard_id, paper_id, arxiv_id,
@@ -159,7 +207,7 @@ def _worker_state(registry_version: str) -> dict:
 
 
 def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False,
-                watchdog_secs: int = 300) -> str:
+                watchdog_secs: int = 300, paper_timeout: float = 120) -> str:
     """Worker: stream one tar, scan it, upload outputs + `.done` marker.
 
     A tar that outlives `watchdog_secs` dumps its traceback to the log and keeps
@@ -175,7 +223,7 @@ def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False
         faulthandler.dump_traceback_later(watchdog_secs, repeat=True, exit=False)
     try:
         with open_tar(aws, entry) as tf:
-            inv, cand, stats_df = scan_tar_stream(tf, entry, reg, timings)
+            inv, cand, stats_df = scan_tar_stream(tf, entry, reg, timings, paper_timeout)
 
         tp = time.perf_counter()
         write_shard_outputs(msi, entry.shard_id, registry_version, inv, cand, ARXIV,
@@ -189,9 +237,12 @@ def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False
         faulthandler.cancel_dump_traceback_later()
 
     skipped = int(stats_df.filter(pl.col('skip_reason') != '').height) if stats_df.height else 0
+    timeouts = int(stats_df.filter(pl.col('skip_reason') == 'timeout').height) \
+        if stats_df.height else 0
     stages = ' '.join(f'{s} {timings.get(s, 0):.0f}' for s in STAGES)
     return (f'{entry.shard_id}: {inv.height} papers, {cand.height} passages, '
-            f'{skipped} skipped, {time.time() - t0:.0f}s [{stages}]')
+            f'{skipped} skipped, {time.time() - t0:.0f}s [{stages}]'
+            + (f' TIMEOUTS {timeouts}' if timeouts else ''))
 
 
 def _todo(entries: list[TarEntry], registry_version: str, client,
@@ -218,7 +269,7 @@ def _todo(entries: list[TarEntry], registry_version: str, client,
 
 def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
              verify_md5: bool = False, max_rounds: int = 6,
-             watchdog_secs: int = 300) -> tuple[int, int]:
+             watchdog_secs: int = 300, paper_timeout: float = 120) -> tuple[int, int]:
     """Scan `todo` in a process pool, rebuilding the pool if it breaks. -> (ok, failed).
 
     A per-tar exception is logged and skipped -- one lost tar out of thousands is
@@ -246,7 +297,7 @@ def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
         retry, broke = [], False
         with ProcessPoolExecutor(max_workers=workers) as ex:
             futures = {ex.submit(process_tar, e, registry_version, verify_md5,
-                                 watchdog_secs): e for e in pending}
+                                 watchdog_secs, paper_timeout): e for e in pending}
             for fut in as_completed(futures):
                 entry = futures[fut]
                 try:
@@ -301,6 +352,9 @@ def main() -> None:
     ap.add_argument('--manifest-cache', default=MANIFEST_CACHE)
     ap.add_argument('--watchdog-secs', type=int, default=300,
                     help='dump a stuck tar\'s traceback after this long (0 disables)')
+    ap.add_argument('--paper-timeout', type=float, default=120,
+                    help='skip a paper whose conversion exceeds this many seconds '
+                         '(recorded as skip_reason=timeout; 0 disables)')
     args = ap.parse_args()
 
     reg = load_registry()
@@ -336,7 +390,8 @@ def main() -> None:
         ap.error('refusing to pay egress outside us-east-1; pass --yes-i-know to override')
 
     ok, failed = run_pool(todo, reg.version, args.max_workers, args.verify_md5,
-                          watchdog_secs=args.watchdog_secs)
+                          watchdog_secs=args.watchdog_secs,
+                          paper_timeout=args.paper_timeout)
     print(f'{ok} tars scanned, {failed} failed', file=sys.stderr)
     if failed:
         raise SystemExit(1)

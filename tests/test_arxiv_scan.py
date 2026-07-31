@@ -233,3 +233,41 @@ def test_stage_timings_are_filled_in_place(reg, entry):
     assert timings['put'] == 0.0                      # process_tar fills that one
     assert all(v >= 0 for v in timings.values())
     assert timings['tex'] > 0 and timings['match'] > 0
+
+
+def test_paper_timeout_becomes_a_skip_row_not_a_dead_worker(reg, entry, monkeypatch):
+    """A non-terminating paper must cost one row, not one worker.
+
+    The real case was an unbalanced brace spinning `_drop_with_args`; here the
+    converter is replaced by a sleep so the guard itself is what gets tested.
+    """
+    import accelscan.arxiv_scan as mod
+    payload = _tar({
+        '2301/2301.00001.gz': _paper(f'Runs on 8 NVIDIA V100 GPUs here. {FILLER}'),
+        '2301/2301.00002.gz': _paper(f'Also runs on an NVIDIA A100 GPU. {FILLER}'),
+    })
+
+    real = mod.latex_to_paragraphs
+
+    def hang_on_second(files):
+        if any(b'A100' in v for v in files.values()):
+            time.sleep(30)                    # far beyond the budget below
+        return real(files)
+
+    monkeypatch.setattr(mod, 'latex_to_paragraphs', hang_on_second)
+    t0 = time.time()
+    with open_stream(NonSeekable(payload)) as tf:
+        inv, cand, stats = scan_tar_stream(tf, entry, reg, {}, paper_timeout=0.3)
+    assert time.time() - t0 < 10                          # did not wait out the sleep
+    reasons = dict(zip(stats['arxiv_id'], stats['skip_reason']))
+    assert reasons['2301.00002'] == 'timeout'
+    assert reasons['2301.00001'] == ''                    # the good paper still landed
+    assert inv['paper_id'].to_list() == ['arxiv:2301.00001']
+
+
+def test_paper_timeout_of_zero_disables_the_guard(reg, entry):
+    payload = _tar({'2301/2301.00001.gz': _paper(
+        f'One NVIDIA V100 GPU was used. {FILLER}')})
+    with open_stream(NonSeekable(payload)) as tf:
+        inv, _, stats = scan_tar_stream(tf, entry, reg, {}, paper_timeout=0)
+    assert inv.height == 1 and stats['skip_reason'].to_list() == ['']

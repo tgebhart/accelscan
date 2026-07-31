@@ -135,15 +135,21 @@ sbatch slurm/arxiv_analytics.txt
 ```
 
 `arxiv_scan` writes a third product per tar, `arxiv/ingest/parts/{shard}.parquet`,
-holding per-paper skip reasons (`pdf_only`, `postscript`, `no_tex`, …) and LaTeX
-conversion stats (`encoding`, `body_found`, `includes_missing`, `had_bibliography`,
+holding per-paper skip reasons (`pdf_only`, `postscript`, `no_tex`, `timeout`, …) and
+LaTeX conversion stats (`encoding`, `body_found`, `includes_missing`, `had_bibliography`,
 `n_ref_paras_filtered`). Plot these **by year before trusting any trend**: a
 converter that degrades across eras manufactures exactly the upward trend this
 project measures.
 
 ### LaTeX conversion
 
-`accelscan/latex.py` is hand-rolled and stdlib-only. Off-the-shelf parsers were
+`accelscan/latex.py` is hand-rolled and stdlib-only. **Every loop over `_braced` must
+check that the index advanced**: it reports an unbalanced group by returning its own
+start index, and an unclosed `\cite{` — ordinary in truncated arXiv source — spun
+`_drop_with_args` forever, consuming one worker per bad paper and killing two
+full-history runs before a `py-spy` dump named the line. `arxiv_scan` now also caps
+each paper at `--paper-timeout` seconds (`skip_reason='timeout'`), so a converter
+pathology costs one counted row rather than a worker. Off-the-shelf parsers were
 measured against this module's own fixture suite, not dismissed: pylatexenc 2.11
 passed 8/19 cases to our 19/19 and ran 18× slower (56 vs 3 single-core hours over
 2.7M papers), mostly because a faithful renderer keeps the floats, captions,

@@ -235,3 +235,36 @@ cases:
       \end{document}
     contains: ['NVIDIA A100', 'first configuration used a batch size']
     absent: ['IEEEkeywords', 'enumerate', 'begin', 'item ']
+
+  - name: unbalanced-brace-after-cite-terminates
+    # THE bug that killed two full-history runs: `_drop_with_args` looped
+    # `while s[j] == '{': _, j = _braced(s, j)`, and `_braced` reports an
+    # unbalanced group by returning its own start index -- so an unclosed
+    # `\cite{` span forever, consuming one worker per bad paper. Truncated
+    # source and half-written macros make this ordinary on arXiv. The test
+    # times out rather than asserting output, so any regression hangs loudly.
+    tex: |
+      \begin{document}
+      All experiments ran on four NVIDIA V100 GPUs in a single node \cite{smith2019
+      \end{document}
+    contains: ['four NVIDIA V100 GPUs']
+
+  - name: unbalanced-brace-mid-document-keeps-later-prose
+    # The unclosed group must not swallow the remainder: the hardware sentence
+    # after it still has to reach the matcher.
+    tex: |
+      \begin{document}
+      We first review the literature on this topic \label{sec:intro
+
+      Our experiments were then run on eight NVIDIA A100 GPUs for three weeks.
+      \end{document}
+    contains: ['eight NVIDIA A100 GPUs']
+
+  - name: unbalanced-optional-arg-after-footnote-terminates
+    # The `[` optional-argument branch has the same shape: `s.find(']')` can
+    # fail, and then the brace loop must still make progress.
+    tex: |
+      \begin{document}
+      The solver was evaluated on a single NVIDIA RTX 3090 GPU \footnote[3
+      \end{document}
+    contains: ['NVIDIA RTX 3090']
