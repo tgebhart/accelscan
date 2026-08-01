@@ -67,14 +67,29 @@ class PaperScan:
 
 def _assemble_passage(paras: list[Paragraph], i: int,
                       matches: list[Match]) -> tuple[str, int]:
-    """Return (passage_text, offset of matched paragraph within it)."""
-    core = paras[i].text[:PASSAGE_CHAR_CAP]
+    """Return (passage_text, offset to add to a match position within it).
+
+    The core window is centred on the matched span, not taken from the head of the
+    paragraph. Head truncation silently cut the *trigger itself* out of the passage
+    whenever a match sat past `PASSAGE_CHAR_CAP`: the recorded `match_starts` then
+    indexed past the end of `passage_text`, and -- worse -- the LLM received a passage
+    with no hardware mention in it and correctly reported none. Measured on the arXiv
+    run at 0.56% of passages guaranteed to lose their trigger this way, and arXiv's
+    long TeX paragraphs make it common in a way GROBID's shorter ones did not.
+    """
+    para = paras[i].text
+    core_start = 0
+    if len(para) > PASSAGE_CHAR_CAP and matches:
+        mid = (min(m.start for m in matches) + max(m.end for m in matches)) // 2
+        core_start = max(0, min(mid - PASSAGE_CHAR_CAP // 2,
+                                len(para) - PASSAGE_CHAR_CAP))
+    core = para[core_start:core_start + PASSAGE_CHAR_CAP]
     budget = PASSAGE_CHAR_CAP - len(core)
     before = paras[i - 1].text[-(budget // 2):] if i > 0 and budget > 40 else ''
     after = paras[i + 1].text[:budget - len(before)] if i + 1 < len(paras) and budget > 40 else ''
     prefix = before + '\n' if before else ''
     text = prefix + core + ('\n' + after if after else '')
-    return text, len(prefix)
+    return text, len(prefix) - core_start
 
 
 def scan_record(record: dict, reg: CompiledRegistry, shard_id: str) -> PaperScan:
@@ -136,6 +151,13 @@ def scan_paragraphs(paras: list[Paragraph], reg: CompiledRegistry, *,
     inv['passages_truncated'] = len(kept_per_para) > cap
     for i, ms in kept_per_para[:cap]:
         text, offset = _assemble_passage(paras, i, ms)
+        # invariant: every reported span must index passage_text. Matches spread
+        # wider than PASSAGE_CHAR_CAP cannot all fit in one window; keep those in
+        # the window rather than emit a dangling offset.
+        kept_ms = [m for m in ms
+                   if 0 <= m.start + offset and m.end + offset <= len(text)
+                   and text[m.start + offset:m.end + offset] == m.surface]
+        ms = kept_ms or ms[:1]
         scan.candidates.append({
             'passage_id': f'{paper_id}:{paras[i].idx}',
             'paper_id': paper_id,

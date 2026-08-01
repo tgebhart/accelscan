@@ -116,3 +116,42 @@ def test_match_offsets_index_the_stored_passage(reg):
     for start, end, surface in zip(c['match_starts'], c['match_ends'],
                                    c['matched_surfaces']):
         assert c['passage_text'][start:end] == surface
+
+
+# --- the span invariant: a reported offset must index the passage it belongs to ---
+
+def test_match_spans_index_passage_text_when_the_match_is_past_the_cap():
+    """Head-truncating the paragraph cut the trigger out of its own passage.
+
+    Found by auditing the finished arXiv run: 0.56% of passages carried offsets
+    past the end of `passage_text`, and those passages reached the LLM containing no
+    hardware mention at all, so it correctly reported none. The window must follow
+    the match.
+    """
+    from accelscan.config import PASSAGE_CHAR_CAP
+    from accelscan.records import Paragraph
+    from accelscan.registry import load_registry
+    from accelscan.scan import scan_paragraphs
+
+    reg = load_registry()
+    filler = 'The derivation proceeds by induction on the number of terms here. '
+    tail = 'All timings were collected on a single NVIDIA V100 GPU in our cluster.'
+    para = filler * ((PASSAGE_CHAR_CAP // len(filler)) + 10) + tail   # match in the tail
+    assert len(para) > PASSAGE_CHAR_CAP
+    scan = scan_paragraphs([Paragraph(idx=0, start=0, end=len(para), text=para,
+                                      section='Setup')],
+                           reg, paper_id='x', corpusid=None, shard_id='s',
+                           body_chars=len(para))
+    assert scan.candidates, 'the match in the paragraph tail was lost entirely'
+    row = scan.candidates[0]
+    assert 'NVIDIA V100' in row['passage_text'], 'trigger absent from its own passage'
+    for surf, s, e in zip(row['matched_surfaces'], row['match_starts'],
+                          row['match_ends']):
+        assert row['passage_text'][s:e] == surf, (surf, s, e)
+    assert 'nvidia-v100' in row['matched_models']
+
+
+def test_split_cap_does_not_exceed_passage_cap():
+    """Splitting paragraphs longer than a passage guarantees truncated matches."""
+    from accelscan.config import PASSAGE_CHAR_CAP, SPLIT_LONG_PARA_CHARS
+    assert SPLIT_LONG_PARA_CHARS <= PASSAGE_CHAR_CAP
