@@ -8,13 +8,14 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=100gb
 #SBATCH --gres=gpu:1
-#SBATCH --array=0-31%16
+#SBATCH --array=0-34%16
 #SBATCH --requeue
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=gebhart@umn.edu
 # arXiv LLM extraction. Same model, prompt and code as S2ORC -- only --corpus
 # differs, so the two corpora are extracted identically.
-# Set --array to the arXiv passage-shard count from repack's manifest first.
+# --array is set for 35 shards (863,815 passages / 25,000). Re-check against
+# repack's printed shard count before submitting -- it is the authority.
 export PYTHONUNBUFFERED=TRUE
 export OMP_NUM_THREADS=4
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
@@ -22,5 +23,4 @@ set -a; source .env; set +a
 module load cuda/12.0
 source activate accelscan
 
-python -m accelscan.infer --corpus arxiv --shard-index $SLURM_ARRAY_TASK_ID \
-  --model Qwen/Qwen3-14B
+python -m accelscan.infer --corpus arxiv --shard-index $SLURM_ARRAY_TASK_ID --model Qwen/Qwen3-14B
