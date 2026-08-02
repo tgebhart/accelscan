@@ -97,11 +97,17 @@ if os.path.basename(os.getcwd()) == 'notebooks':
         # from accelscan.plotting (productivity also takes spread_labels)
         ("from accelscan.plotting import ", "%%PLOTTING%%"),
         ("YEAR_MIN, YEAR_MAX = 2005, 2025", "YEAR_MIN, YEAR_MAX = 2005, 2026"),
+        # figure titles name the corpus, and the title is also the exported filename
+        ("title='S2ORC full-text corpus size'", "title='arXiv corpus size'", 'optional'),
         # trends/productivity/manufacturer take field from the denominator table;
         # capacity and gpu_usage take it from paper_fields (shortened in their own rules)
         ("den = rd('denominator')", "den = short_fields(rd('denominator'))", 'optional'),
         # capacity splits these onto two lines; match the last one either way
         ("so = storage_options()", "so = storage_options()" + KNOBS),
+        # mentions_glob defaults to the S2ORC prefix, so an un-rewritten call reads
+        # the wrong corpus' table and only fails later, on the missing paper_id column
+        ("mentions_glob(MODEL_TAG, PROMPT_VERSION)",
+         "mentions_glob(MODEL_TAG, PROMPT_VERSION, corpus=c)", 'optional'),
         # OPTIONAL: a notebook-specific rule above may already have consumed this
         ("""f's3://{BUCKET}/{OUT_PREFIX}/analytic/{reg.version}/{PROMPT_VERSION}/{MODEL_TAG}'""",
          "s3_uri(analytic_base(c, reg.version, PROMPT_VERSION, MODEL_TAG))", 'optional'),
@@ -132,7 +138,8 @@ if os.path.basename(os.getcwd()) == 'notebooks':
     'manufacturer': [
         # the CUDA lock-in proxy scans stored candidate passages, which for arXiv
         # live under accelscan/arxiv/candidates/
-        ("prefix = f'{OUT_PREFIX}/candidates/'", "prefix = f'{candidates_root(c)}/'"),
+        # candidates_root already ends in '/'; re-adding one lists nothing at all
+        ("prefix = f'{OUT_PREFIX}/candidates/'", "prefix = candidates_root(c)"),
     ],
     'gpu_usage': [
         ("""    return (f's3://{BUCKET}/{OUT_PREFIX}/mentions/{reg.version}'
@@ -149,8 +156,6 @@ if os.path.basename(os.getcwd()) == 'notebooks':
          "        .select(KEY, 'year', 'field')"),
     ],
     'productivity': [
-        ("mentions_glob(MODEL_TAG, PROMPT_VERSION)",
-         "mentions_glob(MODEL_TAG, PROMPT_VERSION, corpus=c)"),
         ("den = rd('denominator').select('corpusid', 'year', 'field')\ncit = rd('citations')",
          "den = rd('denominator').select(KEY, 'year', 'field')\n"
          "# no citations for arXiv: there is no arXiv->corpusid crosswalk"),
@@ -170,6 +175,29 @@ pm = pm.with_columns(cite_window_complete=pl.col('year') <= CITE_CUTOFF)
     ],
 }
 
+# Prose rules, applied to markdown cells only. Same match-or-fail contract as RULES:
+# a figure title or a validity note that still says "S2ORC" is a wrong claim about
+# this corpus, not a cosmetic slip.
+MD_RULES = {
+    None: [
+        ('the S2ORC full-text', 'the arXiv full-text', 'optional'),
+    ],
+    'productivity': [
+        # the audited numbers and their causes are S2ORC's; arXiv dates come from the
+        # id (= v1 submission), so the metadata-error cause does not carry over
+        ("""Audited on the full run: **~0.08% of used-model observations are pre-release**
+(102 at -1 year, 21 at -2, 11 at -3 or earlier). Identified causes: S2ORC year
+metadata errors (one paper dated **1970** — a Unix-epoch default), preprint /
+version date mismatches, and a handful of registry release dates that are a
+year off.""",
+         """The rate for this corpus is computed below. arXiv years are derived from the
+id, i.e. the v1 submission month, so the S2ORC metadata errors behind its
+~0.08% do not apply here; what remains is a genuine preprint effect (a paper
+posted before a chip ships, then revised) plus registry release dates that are
+a year off."""),
+    ],
+}
+
 # Cells removed wholesale: the citation section and the citation half of rank-stability.
 DROP_CELLS = {'productivity': (18, 19, 20, 21)}
 
@@ -183,12 +211,17 @@ def transform(nb: str) -> dict:
     # f-string, and letting the generic rule fire first would stop them matching
     rules = list(RULES.get(nb, [])) + list(RULES[None])
     rules.append((f"setup_figures('{nb}')", f"setup_figures('arxiv/{nb}')"))
-    counts = {r[0]: 0 for r in rules}
-    optional = {r[0] for r in rules if len(r) > 2}
+    md_rules = list(MD_RULES.get(nb, [])) + list(MD_RULES[None])
+    counts = {r[0]: 0 for r in rules + md_rules}
+    optional = {r[0] for r in rules + md_rules if len(r) > 2}
     for cell in d['cells']:
         if cell['cell_type'] != 'code':
-            md = ''.join(cell['source']).replace('`s2fieldsofstudy`',
-                                                 "arXiv's own taxonomy")
+            md = ''.join(cell['source'])
+            for old, new, *_ in md_rules:
+                if old in md:
+                    counts[old] += md.count(old)
+                    md = md.replace(old, new)
+            md = md.replace('`s2fieldsofstudy`', "arXiv's own taxonomy")
             cell['source'] = md.replace('s2fieldsofstudy',
                                         'arXiv category').splitlines(keepends=True)
             continue
@@ -222,7 +255,8 @@ def transform(nb: str) -> dict:
             continue
         body = ''.join(cell['source'])
         for bad in ('{OUT_PREFIX}', 'PAPERS_PREFIX', "'corpusid'", '"corpusid"',
-                    's2fieldsofstudy'):
+                    's2fieldsofstudy',
+                    'mentions_glob(MODEL_TAG, PROMPT_VERSION)'):
             if bad in body:
                 raise SystemExit(f'{nb}: cell {i} still references {bad!r} after '
                                  f'transformation')
