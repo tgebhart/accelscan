@@ -11,8 +11,10 @@ is preferred over the Kaggle `Cornell-University/arxiv` snapshot because it is l
 rather than refreshed weekly and needs no credentials; the Kaggle JSONL is still
 accepted, since the harvester deliberately emits the same record shape.
 
-    python -m accelscan.scripts.harvest_arxiv_oai --out $SCRATCH/arxiv_oai.jsonl
-    python -m accelscan.scripts.build_arxiv_metadata --input $SCRATCH/arxiv_oai.jsonl --upload
+    python -m accelscan.scripts.harvest_arxiv_oai --out output/arxiv_oai.jsonl.gz
+    python -m accelscan.scripts.build_arxiv_metadata --input output/arxiv_oai.jsonl.gz --upload
+
+Accepts plain or gzipped JSONL (`.gz` detected by name).
 
 Streams the file in batches (a 2.7M-row frame with abstracts is several GB, so the
 batches are concatenated once at the end rather than held per-record as Python
@@ -20,6 +22,7 @@ dicts).
 """
 
 import argparse
+import gzip
 import io
 import sys
 from datetime import date
@@ -97,7 +100,8 @@ def parse_record(rec: dict, mapping: dict[str, str]) -> dict | None:
 def build(path: str, limit: int | None = None) -> pl.DataFrame:
     mapping = load_category_map()
     frames, rows, n, bad, unmapped = [], [], 0, 0, {}
-    with open(path, 'rb') as f:
+    opener = gzip.open if str(path).endswith('.gz') else open
+    with opener(path, 'rb') as f:
         for line in f:
             try:
                 rec = orjson.loads(line)

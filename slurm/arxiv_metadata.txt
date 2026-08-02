@@ -16,8 +16,9 @@
 # Source is arXiv's own OAI-PMH endpoint, not the Kaggle snapshot: it is live rather
 # than refreshed weekly, needs no credentials, and is the route arXiv documents for
 # bulk *metadata* (bulk full text still comes from the requester-pays src/ tars).
-# Measured at 1,300 records/page, ~3 MB/page, so ~2,080 requests and ~6.4 GB for
-# ~2.7M records; at the 3s politeness delay that is roughly 2-3 hours.
+# Measured at 1,300 records/page, ~3 MB/page, so ~2,080 requests and ~6.4 GB of XML
+# over the wire for ~2.7M records; at the 3s politeness delay that is roughly 2-3
+# hours. The harvested JSONL is written gzipped, ~0.9 GB on disk.
 #
 # The harvest checkpoints its resumption token after every page, so a requeue or a
 # timeout resumes instead of restarting -- rerun this identical script.
@@ -26,7 +27,9 @@ cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
 source activate accelscan
 
-OAI=/scratch.global/$USER/arxiv_oai.jsonl
+# Lands in the project's gitignored output/ dir, not scratch: ~0.9 GB gzipped
+# (~3.0 GB plain), measured at 3.2x on real records. It is intermediate -- delete it once the parquet is on S3.
+OAI=output/arxiv_oai.jsonl.gz
 
 python -m accelscan.scripts.harvest_arxiv_oai --out $OAI
 
