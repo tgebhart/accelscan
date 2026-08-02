@@ -60,6 +60,13 @@ while not os.path.isdir('registry') and os.getcwd() != '/':
 KNOBS = """
 CORPUS = 'arxiv'
 c = get_corpus(CORPUS); KEY = c.key      # 'paper_id'; corpusid is null for arXiv
+
+# arXiv's group names are too long for legends and axis ticks. Applied at every point
+# `field` enters, so the short form is what every figure and table shows.
+FIELD_LABELS = {'Electrical Engineering and Systems Science': 'EE and Systems',
+                'Quantitative Biology': 'Quant. Biology',
+                'Quantitative Finance': 'Quant. Finance'}
+short_fields = lambda df: df.with_columns(pl.col('field').replace(FIELD_LABELS))
 """
 
 CAVEAT = """## arXiv corpus — read this first
@@ -100,6 +107,9 @@ if os.path.basename(os.getcwd()) == 'notebooks':
         # from accelscan.plotting (productivity also takes spread_labels)
         ("from accelscan.plotting import ", "%%PLOTTING%%"),
         ("YEAR_MIN, YEAR_MAX = 2005, 2025", "YEAR_MIN, YEAR_MAX = 2005, 2026"),
+        # trends/productivity/manufacturer take field from the denominator table;
+        # capacity and gpu_usage take it from paper_fields (shortened in their own rules)
+        ("den = rd('denominator')", "den = short_fields(rd('denominator'))", 'optional'),
         # capacity splits these onto two lines; match the last one either way
         ("so = storage_options()", "so = storage_options()" + KNOBS),
         # OPTIONAL: a notebook-specific rule above may already have consumed this
@@ -124,7 +134,8 @@ if os.path.basename(os.getcwd()) == 'notebooks':
           .filter(pl.col('corpusid').is_in(need))
           .with_columns(field=pl.col('s2fieldsofstudy').list.first().struct.field('category'))
           .select('corpusid', 'field').collect())""",
-         "fields = paper_fields(c, pl.DataFrame({KEY: need}), so).select(KEY, 'field')"),
+         "fields = short_fields(paper_fields(c, pl.DataFrame({KEY: need}), so))\\\n"
+         "         .select(KEY, 'field')"),
         ("""            f's3://{BUCKET}/{OUT_PREFIX}/precision/0.1.0/paper_precision.parquet',""",
          "            s3_uri(precision_key(c, '0.1.0')),"),
     ],
@@ -144,8 +155,8 @@ if os.path.basename(os.getcwd()) == 'notebooks':
               .with_columns(field=pl.col('s2fieldsofstudy').list.first().struct.field('category'))
               .select('corpusid', 'year', 'field')
               .collect())""",
-         "    papers = paper_fields(c, pl.DataFrame({KEY: ids}), so).select(KEY, 'year',\n"
-         "                                                                'field')"),
+         "    papers = short_fields(paper_fields(c, pl.DataFrame({KEY: ids}), so))\\\n"
+         "        .select(KEY, 'year', 'field')"),
     ],
     'productivity': [
         ("mentions_glob(MODEL_TAG, PROMPT_VERSION)",
