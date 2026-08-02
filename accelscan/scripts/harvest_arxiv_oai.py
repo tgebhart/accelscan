@@ -41,33 +41,49 @@ ARX = '{http://arxiv.org/OAI/arXiv/}'
 UA = 'accelscan/0.1 (metascience research; contact gebhart@umn.edu)'
 # arXiv asks harvesters to be gentle and honours Retry-After on 503.
 DELAY = 3.0
-MAX_RETRIES = 8
+MAX_RETRIES = 8        # consecutive network errors before giving up
+MAX_THROTTLES = 40     # consecutive 503s; arXiv throttling is expected, not fatal
 # One source of truth for the intermediate path, imported by build_arxiv_metadata so
 # the two halves cannot disagree. Relative: everything here runs from the repo root,
 # and output/ is gitignored.
 OAI_JSONL = 'output/arxiv_oai.jsonl.gz'
 
 
-def fetch(params: dict, timeout: int = 180) -> str:
-    """One OAI request, honouring 503 Retry-After (arXiv's documented throttle)."""
+def fetch(params: dict, timeout: int = 300) -> str:
+    """One OAI request, honouring 503 Retry-After (arXiv's documented throttle).
+
+    503s get their own budget: they are arXiv telling us to wait, not a failure, and
+    sharing one counter with network errors let a sustained throttle exhaust the
+    retries and kill an hour-long harvest. Read timeouts are the common transient
+    here -- pages are ~3 MB and the connection sometimes stalls mid-body.
+    """
     url = f'{BASE}?{urllib.parse.urlencode(params)}'
-    for attempt in range(MAX_RETRIES):
+    net_errors, throttles = 0, 0
+    while True:
         req = urllib.request.Request(url, headers={'User-Agent': UA})
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read().decode('utf-8', errors='replace')
         except urllib.error.HTTPError as e:
-            if e.code == 503:
-                wait = int(e.headers.get('Retry-After', 20) or 20)
-                print(f'  503, sleeping {wait}s', file=sys.stderr)
-                time.sleep(wait)
-                continue
-            raise
-        except (urllib.error.URLError, TimeoutError) as e:
-            wait = min(60, 5 * 2 ** attempt)
-            print(f'  {e}, retry in {wait}s', file=sys.stderr)
+            if e.code != 503:
+                raise
+            throttles += 1
+            if throttles > MAX_THROTTLES:
+                raise RuntimeError(
+                    f'throttled {throttles} times in a row; rerun to resume') from e
+            wait = min(300, int(e.headers.get('Retry-After', 20) or 20))
+            print(f'  503 ({throttles}), sleeping {wait}s', file=sys.stderr)
             time.sleep(wait)
-    raise RuntimeError(f'giving up after {MAX_RETRIES} attempts: {url}')
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            net_errors += 1
+            if net_errors > MAX_RETRIES:
+                raise RuntimeError(
+                    f'{net_errors} network errors on {url}; the page checkpoint is '
+                    f'intact, so rerunning resumes from here') from e
+            wait = min(60, 5 * 2 ** (net_errors - 1))
+            print(f'  {e}, retry {net_errors}/{MAX_RETRIES} in {wait}s',
+                  file=sys.stderr)
+            time.sleep(wait)
 
 
 def _text(node, tag: str) -> str | None:
