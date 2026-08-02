@@ -43,13 +43,26 @@ UA = 'accelscan/0.1 (metascience research; contact gebhart@umn.edu)'
 DELAY = 3.0
 MAX_RETRIES = 8        # consecutive network errors before giving up
 MAX_THROTTLES = 40     # consecutive 503s; arXiv throttling is expected, not fatal
+READ_TIMEOUT = 120     # a page normally takes ~2s, so this is 60x headroom; keeping it
+                       # short means a stalled read is abandoned and retried quickly
+                       # instead of looking like a hang
+# ETA denominator only. OAI does not advertise completeListSize (checked), and
+# ListIdentifiers stalls rather than answering, so this is our own measured figure:
+# stage 1 saw 3,091,651 submissions in the src tars through 2026-06. Override with
+# --total; being wrong skews the ETA and nothing else.
+EST_TOTAL_RECORDS = 3_100_000
 # One source of truth for the intermediate path, imported by build_arxiv_metadata so
 # the two halves cannot disagree. Relative: everything here runs from the repo root,
 # and output/ is gitignored.
 OAI_JSONL = 'output/arxiv_oai.jsonl.gz'
 
 
-def fetch(params: dict, timeout: int = 300) -> str:
+def _hms(seconds: float) -> str:
+    s = int(max(seconds, 0))
+    return f'{s // 3600}h{(s % 3600) // 60:02d}m' if s >= 3600 else f'{s // 60}m{s % 60:02d}s'
+
+
+def fetch(params: dict, timeout: int = READ_TIMEOUT, label: str = '') -> str:
     """One OAI request, honouring 503 Retry-After (arXiv's documented throttle).
 
     503s get their own budget: they are arXiv telling us to wait, not a failure, and
@@ -72,7 +85,8 @@ def fetch(params: dict, timeout: int = 300) -> str:
                 raise RuntimeError(
                     f'throttled {throttles} times in a row; rerun to resume') from e
             wait = min(300, int(e.headers.get('Retry-After', 20) or 20))
-            print(f'  503 ({throttles}), sleeping {wait}s', file=sys.stderr)
+            print(f'  {label} 503 throttle {throttles}/{MAX_THROTTLES}, '
+                  f'sleeping {wait}s', file=sys.stderr, flush=True)
             time.sleep(wait)
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             net_errors += 1
@@ -81,8 +95,9 @@ def fetch(params: dict, timeout: int = 300) -> str:
                     f'{net_errors} network errors on {url}; the page checkpoint is '
                     f'intact, so rerunning resumes from here') from e
             wait = min(60, 5 * 2 ** (net_errors - 1))
-            print(f'  {e}, retry {net_errors}/{MAX_RETRIES} in {wait}s',
-                  file=sys.stderr)
+            print(f'  {label} {type(e).__name__}: {e} -- retry '
+                  f'{net_errors}/{MAX_RETRIES} in {wait}s',
+                  file=sys.stderr, flush=True)
             time.sleep(wait)
 
 
@@ -136,6 +151,8 @@ def main() -> None:
                     help=f'JSONL output, appended on resume (default {OAI_JSONL})')
     ap.add_argument('--max-pages', type=int, help='smoke test: stop after N pages')
     ap.add_argument('--delay', type=float, default=DELAY)
+    ap.add_argument('--total', type=int, default=EST_TOTAL_RECORDS,
+                    help=f'ETA denominator only (default {EST_TOTAL_RECORDS:,})')
     ap.add_argument('--restart', action='store_true', help='ignore the checkpoint')
     args = ap.parse_args()
 
@@ -154,24 +171,43 @@ def main() -> None:
     mode = 'a' if written else 'w'
     opener = (lambda: gzip.open(out, mode + 't', encoding='utf-8')) \
         if out.name.endswith('.gz') else (lambda: open(out, mode, encoding='utf-8'))
-    t0, pages = time.time(), 0
+    t0, pages, start_written = time.time(), 0, written
     with opener() as fh:
         while True:
             params = ({'verb': 'ListRecords', 'resumptionToken': token} if token
                       else {'verb': 'ListRecords', 'metadataPrefix': 'arXiv'})
-            recs, token = parse_page(fetch(params))
+            label = f'[page {pages + 1}]'
+            # announced BEFORE the request, because arXiv throttles by accepting the
+            # connection and sending nothing: a stalled read is silent for the whole
+            # timeout, and without this line that is indistinguishable from a hang.
+            print(f'{label} requesting (skip={written:,})...', file=sys.stderr,
+                  flush=True)
+            t_req = time.time()
+            recs, token = parse_page(fetch(params, label=label))
             for r in recs:
                 fh.write(json.dumps(r, ensure_ascii=False) + '\n')
             fh.flush()
             written += len(recs)
             pages += 1
             state_path.write_text(json.dumps({'token': token, 'written': written}))
-            rate = written / max(time.time() - t0, 1e-9)
-            print(f'page {pages}: +{len(recs)} -> {written:,} records '
-                  f'({rate:.0f}/s)  token={"none" if not token else token[-24:]}',
-                  file=sys.stderr)
+
+            elapsed = time.time() - t0
+            done_now = written - start_written
+            rate = done_now / max(elapsed, 1e-9)
+            pct = 100 * written / args.total if args.total else 0
+            # Withhold the ETA until there is enough signal: over the first page or
+            # two the elapsed window is near zero, which produced "eta ~7m" on a
+            # 2-3 hour job. Same trap as the tar scan's pace line.
+            eta = (f'~{_hms((args.total - written) / rate)}'
+                   if pages >= 3 and elapsed >= 20 and rate > 0 and args.total
+                   else 'settling')
+            print(f'{label} +{len(recs):,} -> {written:,} recs ({pct:.1f}% of '
+                  f'~{args.total / 1e6:.1f}M) | {time.time() - t_req:.1f}s/page '
+                  f'{rate:.0f} rec/s | elapsed {_hms(elapsed)} eta {eta}',
+                  file=sys.stderr, flush=True)
             if not token:
-                print('harvest complete', file=sys.stderr)
+                print(f'harvest complete: {written:,} records in {_hms(elapsed)} '
+                      f'({pages} pages)', file=sys.stderr, flush=True)
                 state_path.unlink(missing_ok=True)
                 break
             if args.max_pages and pages >= args.max_pages:
