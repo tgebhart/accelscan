@@ -1,0 +1,23 @@
+#!/bin/bash -l
+#SBATCH --time=1:00:00
+#SBATCH -p msismall
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=24
+#SBATCH --mem=64gb
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=gebhart@umn.edu
+# arXiv id <-> corpusid crosswalk from openaccessinfo.externalids.ArXiv in the S2ORC
+# shards. The processed papers parquet has no arXiv id (doi/magid only) and there is
+# no sibling externalids table, so this needs one decompressing pass over all 214
+# shards. Measured at 24s/shard, so ~5 minutes on 24 workers -- the 1h limit is slack.
+#
+# Per-shard .done markers: rerunning this identical script skips finished shards.
+export PYTHONUNBUFFERED=TRUE
+export OMP_NUM_THREADS=2
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+python -m accelscan.scripts.build_arxiv_crosswalk --max-workers 24
