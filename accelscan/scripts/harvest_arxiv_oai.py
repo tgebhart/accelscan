@@ -20,8 +20,8 @@ A `.gz` output is written gzipped, which is the default: measured 3.2x on real
 records, so ~3.0 GB plain against ~0.9 GB compressed for the full corpus, and this file is scratch that gets deleted afterwards.
 Resuming appends a new gzip member, which `gzip.open` reads through transparently.
 
-  python -m accelscan.scripts.harvest_arxiv_oai --out output/arxiv_oai.jsonl.gz
-  python -m accelscan.scripts.harvest_arxiv_oai --out ... --max-pages 3   # smoke test
+  python -m accelscan.scripts.harvest_arxiv_oai                  # -> output/…jsonl.gz
+  python -m accelscan.scripts.harvest_arxiv_oai --max-pages 3     # smoke test
 """
 
 import argparse
@@ -42,6 +42,10 @@ UA = 'accelscan/0.1 (metascience research; contact gebhart@umn.edu)'
 # arXiv asks harvesters to be gentle and honours Retry-After on 503.
 DELAY = 3.0
 MAX_RETRIES = 8
+# One source of truth for the intermediate path, imported by build_arxiv_metadata so
+# the two halves cannot disagree. Relative: everything here runs from the repo root,
+# and output/ is gitignored.
+OAI_JSONL = 'output/arxiv_oai.jsonl.gz'
 
 
 def fetch(params: dict, timeout: int = 180) -> str:
@@ -112,7 +116,8 @@ def parse_page(xml: str) -> tuple[list[dict], str | None]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', required=True, help='JSONL output (appended on resume)')
+    ap.add_argument('--out', default=OAI_JSONL,
+                    help=f'JSONL output, appended on resume (default {OAI_JSONL})')
     ap.add_argument('--max-pages', type=int, help='smoke test: stop after N pages')
     ap.add_argument('--delay', type=float, default=DELAY)
     ap.add_argument('--restart', action='store_true', help='ignore the checkpoint')

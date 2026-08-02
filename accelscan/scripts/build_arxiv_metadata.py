@@ -11,8 +11,8 @@ is preferred over the Kaggle `Cornell-University/arxiv` snapshot because it is l
 rather than refreshed weekly and needs no credentials; the Kaggle JSONL is still
 accepted, since the harvester deliberately emits the same record shape.
 
-    python -m accelscan.scripts.harvest_arxiv_oai --out output/arxiv_oai.jsonl.gz
-    python -m accelscan.scripts.build_arxiv_metadata --input output/arxiv_oai.jsonl.gz --upload
+    python -m accelscan.scripts.harvest_arxiv_oai
+    python -m accelscan.scripts.build_arxiv_metadata --upload
 
 Accepts plain or gzipped JSONL (`.gz` detected by name).
 
@@ -36,6 +36,7 @@ from accelscan.arxiv_meta import field_of, load_category_map, primary_category_o
 from accelscan.arxiv_source import paper_id_from_arxiv_id, year_month_from_id
 from accelscan.config import BUCKET
 from accelscan.paths import arxiv_metadata_key
+from accelscan.scripts.harvest_arxiv_oai import OAI_JSONL
 
 BATCH = 200_000
 
@@ -164,7 +165,8 @@ def report(df: pl.DataFrame) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--input', required=True, help='arxiv-metadata-oai-snapshot.json')
+    ap.add_argument('--input', default=OAI_JSONL,
+                    help=f'harvested JSONL, plain or .gz (default {OAI_JSONL})')
     ap.add_argument('--limit', type=int, help='dev: first N records')
     ap.add_argument('--local-out', help='write here instead of S3')
     ap.add_argument('--upload', action='store_true', help='write to MSI S3')

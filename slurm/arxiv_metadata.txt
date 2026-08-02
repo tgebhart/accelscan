@@ -27,13 +27,12 @@ cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
 source activate accelscan
 
-# Lands in the project's gitignored output/ dir, not scratch: ~0.9 GB gzipped
-# (~3.0 GB plain), measured at 3.2x on real records. It is intermediate -- delete it once the parquet is on S3.
-OAI=output/arxiv_oai.jsonl.gz
+# Both commands default to output/arxiv_oai.jsonl.gz -- the project's gitignored
+# output/ dir, not scratch: ~0.9 GB gzipped (~3.0 GB plain, measured at 3.2x). It is
+# intermediate -- delete it once the parquet is on S3.
+python -m accelscan.scripts.harvest_arxiv_oai
 
-python -m accelscan.scripts.harvest_arxiv_oai --out $OAI
-
-python -m accelscan.scripts.build_arxiv_metadata --input $OAI --upload
+python -m accelscan.scripts.build_arxiv_metadata --upload
 
 # Check two lines of the report before trusting the field analyses:
 #   "submitted before id" must be ~0% (else year_month_from_id is wrong)
