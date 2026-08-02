@@ -22,8 +22,7 @@ Both are metadata only: Kaggle's "full text PDFs" refers to a separate, stale GC
 mirror with no LaTeX source, which is why the pipeline reads the requester-pays
 `src/` tars.
 
-    bash slurm/arxiv_metadata.txt       # downloads the parquet shards, then builds
-    python -m accelscan.scripts.build_arxiv_metadata --upload
+    python -m accelscan.scripts.build_arxiv_metadata --upload   # fetches, then builds
 
 Streams the file in batches (a 2.7M-row frame with abstracts is several GB, so the
 batches are concatenated once at the end rather than held per-record as Python
@@ -34,6 +33,8 @@ import argparse
 import gzip
 import io
 import sys
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -46,8 +47,53 @@ from accelscan.config import BUCKET
 from accelscan.paths import arxiv_metadata_key
 
 BATCH = 200_000
-# Where slurm/arxiv_metadata.txt puts the downloaded parquet shards. Gitignored.
-META_DIR = 'output/arxiv_meta'
+META_DIR = 'output/arxiv_meta'      # gitignored; delete once the parquet is on S3
+HF_BASE = ('https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot'
+           '/resolve/main/data')
+N_SHARDS = 10
+SHARD = 'train-{i:05d}-of-{n:05d}.parquet'
+
+
+def _remote_size(url: str) -> int:
+    req = urllib.request.Request(url, method='HEAD')
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return int(r.headers.get('Content-Length') or 0)
+
+
+def fetch_shard(i: int, dest: Path, n: int = N_SHARDS) -> str:
+    """Download one shard, resuming a partial file. -> status line.
+
+    A short file is silent data loss -- parquet only fails at the footer -- so the
+    remote length is checked first and the local file is only accepted when it
+    matches exactly.
+    """
+    name = SHARD.format(i=i, n=n)
+    url, out = f'{HF_BASE}/{name}', dest / name
+    want = _remote_size(url)
+    have = out.stat().st_size if out.exists() else 0
+    if have == want and want:
+        return f'{name}: already complete ({want / 1e6:.0f} MB)'
+    headers = {'Range': f'bytes={have}-'} if have else {}
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=300) as r, \
+            open(out, 'ab' if have else 'wb') as fh:
+        while chunk := r.read(1 << 20):
+            fh.write(chunk)
+    got = out.stat().st_size
+    if got != want:
+        raise RuntimeError(f'{name}: got {got} bytes, expected {want}; rerun to resume')
+    return f'{name}: {"resumed" if have else "fetched"} -> {got / 1e6:.0f} MB'
+
+
+def download(dest: str = META_DIR, workers: int = N_SHARDS) -> Path:
+    """Fetch all shards in parallel. One stream measured ~450 KB/s; ten is ~10x."""
+    d = Path(dest)
+    d.mkdir(parents=True, exist_ok=True)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {ex.submit(fetch_shard, i, d): i for i in range(N_SHARDS)}
+        for fut in as_completed(futures):
+            print(f'  {fut.result()}', file=sys.stderr)
+    return d
 
 SCHEMA = {
     'paper_id': pl.Utf8, 'arxiv_id': pl.Utf8, 'primary_category': pl.Utf8,
@@ -188,8 +234,12 @@ def main() -> None:
     ap.add_argument('--limit', type=int, help='dev: first N records')
     ap.add_argument('--local-out', help='write here instead of S3')
     ap.add_argument('--upload', action='store_true', help='write to MSI S3')
+    ap.add_argument('--no-download', action='store_true',
+                    help='use whatever is already in --input')
     args = ap.parse_args()
 
+    if not args.no_download and args.input == META_DIR:
+        download(args.input)
     df = build(args.input, args.limit)
     report(df)
 
