@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --time=2:00:00
+#SBATCH --time=4:00:00
 #SBATCH -p msismall
 #SBATCH -A funkr
 #SBATCH --nodes=1
@@ -8,17 +8,45 @@
 #SBATCH --mem=64gb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
-# arXiv category/title/abstract snapshot -> parquet on MSI S3. Supplies `field`
-# (arXiv's own taxonomy) and the abstracts the topic pipeline needs. Year is NOT
-# taken from here -- it comes free from the arXiv id.
+# arXiv category/title/abstract metadata -> parquet on MSI S3. Supplies `field`
+# (arXiv's own taxonomy), `primary_category`, and the abstracts the topic pipeline
+# needs. Year is NOT taken from here -- it comes free from the arXiv id, so nothing
+# in the capacity section waits on this job.
 #
-# Fetch the snapshot first (free, CC0, ~5.4 GB):
-#   kaggle datasets download -d Cornell-University/arxiv -p $MSIPROJECT/gebhart/arxiv
-#   unzip -o $MSIPROJECT/gebhart/arxiv/arxiv.zip -d $MSIPROJECT/gebhart/arxiv
+# Source: librarian-bots/arxiv-metadata-snapshot on Hugging Face, a public mirror of
+# the Kaggle snapshot with the identical record fields. No CLI, no credentials, no
+# unzip, and parquet rather than a 5.4 GB JSON: 3,113,330 rows in 10 shards, ~2.9 GB.
+# Verified 2026-08-02; the mirror was refreshed 2026-07-27.
+#
+# curl -C - makes each shard resumable, so rerunning this script after a timeout or a
+# dropped connection continues rather than restarting.
 export PYTHONUNBUFFERED=TRUE
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
 source activate accelscan
 
-python -m accelscan.scripts.build_arxiv_metadata \
-  --input $MSIPROJECT/gebhart/arxiv/arxiv-metadata-oai-snapshot.json --upload
+DIR=output/arxiv_meta          # gitignored; delete once the parquet is on S3
+BASE=https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot/resolve/main/data
+mkdir -p $DIR
+
+# Fetched in parallel: one stream measured ~450 KB/s, which is ~2h for 3.3 GB.
+fetch() { curl -fsSL -C - --retry 5 --retry-delay 10 --retry-all-errors -o "$DIR/$1" "$BASE/$1"; }
+for i in 0 1 2 3 4 5 6 7 8 9; do fetch train-0000${i}-of-00010.parquet & done
+wait
+
+# A truncated shard is a silent data loss, so check every file arrived before building
+missing=0
+for i in 0 1 2 3 4 5 6 7 8 9; do
+  F=$DIR/train-0000${i}-of-00010.parquet
+  SZ=$(stat -c%s "$F" 2>/dev/null || echo 0)
+  if [ "$SZ" -lt 100000000 ]; then echo "SHORT/MISSING: $F ($SZ bytes)"; missing=1; fi
+done
+[ "$missing" -eq 0 ] || { echo "rerun this script -- curl -C - resumes"; exit 1; }
+
+python -m accelscan.scripts.build_arxiv_metadata --input $DIR --upload
+
+# Check two lines of the report before trusting the field analyses:
+#   "id year == v1 year" should be ~99%+ (else year_month_from_id is wrong)
+#   "UNMAPPED ARCHIVES"  must not appear (else registry/arxiv_categories.yaml has a
+#                        gap and those papers get a null field, silently dropping
+#                        them out of every field figure)

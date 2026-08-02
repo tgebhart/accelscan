@@ -115,7 +115,8 @@ forked.
 ## arXiv pipeline
 
 ```bash
-# 0. metadata snapshot (Kaggle, CC0, ~5.4GB) -> field/title/abstract  [msismall]
+# 0. metadata snapshot (HF parquet mirror, 3.11M rows, ~2.9GB, no auth)
+#    -> field/primary_category/title/abstract  [msismall]
 sbatch slurm/arxiv_metadata.txt
 
 # 1a. PILOT from MSI: 20 tars over four eras (~10GB, ~$1 egress) + conversion audit
