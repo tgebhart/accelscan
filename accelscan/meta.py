@@ -72,9 +72,21 @@ def _arxiv_meta(cols: list[str], ids: pl.DataFrame | None, so: dict,
 
 def paper_years(c: Corpus, ids: pl.DataFrame, so: dict, client=None,
                 metadata_uri: str | None = None) -> pl.DataFrame:
-    """(key, year). Drives the per-year winsorization cap in `compute.py`."""
+    """(key, year). Drives the per-year winsorization cap in `compute.py`.
+
+    arXiv years come from the id, not the metadata snapshot: every arXiv id encodes
+    `YYMM` (`arxiv:2301.01234`, `arxiv:hep-th/9901001`), with YY>=91 meaning 19YY.
+    Reading them from the Kaggle snapshot instead would make `compute` -- and so the
+    whole capacity section -- block on a 5.4 GB download that is only genuinely
+    needed for `field`/`primary_category`/title/abstract.
+    """
     if c is ARXIV:
-        return _arxiv_meta(['paper_id', 'year'], ids, so, metadata_uri)
+        from accelscan.arxiv_source import year_month_from_id
+        return (ids.select('paper_id').unique()
+                .with_columns(pl.col('paper_id').map_elements(
+                    lambda p: year_month_from_id(p.removeprefix('arxiv:'))[0],
+                    return_dtype=pl.Int32).alias('year'))
+                .filter(pl.col('year').is_not_null()))
     return read_by_part(PAPERS_PREFIX, ['corpusid', 'year'], so=so, client=client,
                         ids=ids, label='years')
 
