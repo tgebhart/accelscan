@@ -6,15 +6,14 @@ embedding/topic pipeline. Year is *not* taken from here -- it comes free from th
 arXiv id (`arxiv_source.year_month_from_id`) -- but the snapshot's v1 submission
 date is carried so the two can be cross-checked.
 
-Source: `harvest_arxiv_oai.py`, which harvests arXiv's own OAI-PMH endpoint. That
-is preferred over the Kaggle `Cornell-University/arxiv` snapshot because it is live
-rather than refreshed weekly and needs no credentials; the Kaggle JSONL is still
-accepted, since the harvester deliberately emits the same record shape.
+Source: the Kaggle dataset `Cornell-University/arxiv`
+(`arxiv-metadata-oai-snapshot.json`, ~5.4 GB, CC0, refreshed weekly). It is
+metadata only: its "full text PDFs" refers to a separate, stale GCS mirror with no
+LaTeX source, which is why the pipeline reads the requester-pays `src/` tars.
 
-    python -m accelscan.scripts.harvest_arxiv_oai
-    python -m accelscan.scripts.build_arxiv_metadata --upload
-
-Accepts plain or gzipped JSONL (`.gz` detected by name).
+    kaggle datasets download -d Cornell-University/arxiv -p /tmp && unzip ...
+    python -m accelscan.scripts.build_arxiv_metadata \\
+        --input /tmp/arxiv-metadata-oai-snapshot.json --upload
 
 Streams the file in batches (a 2.7M-row frame with abstracts is several GB, so the
 batches are concatenated once at the end rather than held per-record as Python
@@ -22,10 +21,8 @@ dicts).
 """
 
 import argparse
-import gzip
 import io
 import sys
-from datetime import date
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
@@ -36,7 +33,6 @@ from accelscan.arxiv_meta import field_of, load_category_map, primary_category_o
 from accelscan.arxiv_source import paper_id_from_arxiv_id, year_month_from_id
 from accelscan.config import BUCKET
 from accelscan.paths import arxiv_metadata_key
-from accelscan.scripts.harvest_arxiv_oai import OAI_JSONL
 
 BATCH = 200_000
 
@@ -50,21 +46,12 @@ SCHEMA = {
 
 
 def _v1_date(versions) -> object:
-    """Date of version 1.
-
-    Two shapes, because there are two sources: the Kaggle snapshot writes RFC-2822
-    ('Mon, 2 Apr 2007 19:18:42 GMT'), while the OAI-PMH harvest
-    (`harvest_arxiv_oai.py`, now the primary source) writes ISO ('2007-04-02').
-    """
+    """Date of version 1, from an RFC-2822 string ('Mon, 2 Apr 2007 19:18:42 GMT')."""
     if not versions:
         return None
     created = (versions[0] or {}).get('created')
     if not created:
         return None
-    try:
-        return date.fromisoformat(created.strip())
-    except ValueError:
-        pass
     try:
         return parsedate_to_datetime(created).date()
     except Exception:
@@ -101,8 +88,7 @@ def parse_record(rec: dict, mapping: dict[str, str]) -> dict | None:
 def build(path: str, limit: int | None = None) -> pl.DataFrame:
     mapping = load_category_map()
     frames, rows, n, bad, unmapped = [], [], 0, 0, {}
-    opener = gzip.open if str(path).endswith('.gz') else open
-    with opener(path, 'rb') as f:
+    with open(path, 'rb') as f:
         for line in f:
             try:
                 rec = orjson.loads(line)
@@ -142,31 +128,18 @@ def report(df: pl.DataFrame) -> None:
           file=sys.stderr)
     print(f'  abstract coverage   : {100 * df["abstract"].is_not_null().mean():.2f}%',
           file=sys.stderr)
-    # The id is authoritative for `year`; `submitted` is a cross-check only. The
-    # comparison must be DIRECTIONAL: OAI `created` on pre-2007 records is often a
-    # later re-dating (adap-org/9905004, id May 1999, created 2000-05-17 -- same
-    # month, wrong year), which is arXiv's history, not our bug. What would be a real
-    # bug is `submitted` landing *before* the id's own month, since a paper cannot be
-    # announced before the identifier it was issued. One week of slack covers papers
-    # submitted at a month boundary and announced in the next.
-    both = df.filter(pl.col('year').is_not_null() & pl.col('submitted').is_not_null())
+    both = df.filter(pl.col('year').is_not_null() & pl.col('snapshot_year').is_not_null())
     if both.height:
-        id_month = pl.date(pl.col('year'), pl.col('month'), 1)
-        early = both.filter(pl.col('submitted') < id_month.dt.offset_by('-7d')).height
-        late = both.filter(pl.col('submitted') >= id_month.dt.offset_by('1mo')).height
-        print(f'  submitted before id : {100 * early / both.height:.3f}%  '
-              f'({early:,})  <- >0.5% means year_month_from_id is wrong',
-              file=sys.stderr)
-        print(f'  submitted after id  : {100 * late / both.height:.2f}%  ({late:,})  '
-              f'expected: arXiv re-dated many pre-2007 records', file=sys.stderr)
+        agree = (both['year'] == both['snapshot_year']).mean()
+        print(f'  id year == v1 year  : {100 * agree:.2f}%  '
+              f'(<99% means year_month_from_id is wrong somewhere)', file=sys.stderr)
     with pl.Config(tbl_rows=12):
         print(df.group_by('field').len().sort('len', descending=True), file=sys.stderr)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--input', default=OAI_JSONL,
-                    help=f'harvested JSONL, plain or .gz (default {OAI_JSONL})')
+    ap.add_argument('--input', required=True, help='arxiv-metadata-oai-snapshot.json')
     ap.add_argument('--limit', type=int, help='dev: first N records')
     ap.add_argument('--local-out', help='write here instead of S3')
     ap.add_argument('--upload', action='store_true', help='write to MSI S3')
