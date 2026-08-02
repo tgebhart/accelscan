@@ -48,6 +48,15 @@ from accelscan.paths import (analytic_base, candidates_root, capacity_key,
                              get_corpus, precision_key, s3_uri)
 """
 
+# The twins live two levels down, and most originals have no guard at all -- they
+# assume Jupyter was started from the repo root. Climbing until `registry/` is
+# visible works from anywhere, so `registry/hardware.yaml` and `output/` resolve.
+GUARD = """import os
+while not os.path.isdir('registry') and os.getcwd() != '/':
+    os.chdir('..')
+
+"""
+
 KNOBS = """
 CORPUS = 'arxiv'
 c = get_corpus(CORPUS); KEY = c.key      # 'paper_id'; corpusid is null for arXiv
@@ -76,6 +85,13 @@ Only **within-corpus trends** should be compared across the two corpora.
 # (notebook, old, new). Applied to code cells; each must match exactly once overall.
 RULES = {
     None: [                                    # every notebook
+        # the twins sit two levels down (notebooks/arxiv/), so the original guard --
+        # which only climbs out of a dir literally named 'notebooks' -- leaves the cwd
+        # wrong and every repo-relative path (registry/hardware.yaml) fails
+        ("""import os
+if os.path.basename(os.getcwd()) == 'notebooks':
+    os.chdir('..')
+""", "", 'optional'),      # replaced by GUARD below, injected unconditionally
         # PAPERS_PREFIX is the S2 metadata table; arXiv gets field/year from
         # meta.paper_fields instead, so the import goes with it
         ("from accelscan.config import BUCKET, OUT_PREFIX, PAPERS_PREFIX",
@@ -180,6 +196,8 @@ def transform(nb: str) -> dict:
             if old in src:
                 counts[old] += src.count(old)
                 src = src.replace(old, new)
+        if 'setup_figures(' in src and 'os.chdir' not in src:
+            src = GUARD + src
         if '%%PLOTTING%%' in src:
             head, rest = src.split('%%PLOTTING%%', 1)
             names, tail = rest.split('\n', 1)
