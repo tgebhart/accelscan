@@ -144,51 +144,37 @@ models:
      aliases: [{pattern: "CDNA[1-4]?", gate: gpu}]}
 
   # ------------------------------------------------------------------
-  # Long-tail accelerators not covered by the scraped Wikipedia list pages
-  # (release dates from vendor announcements / Wikipedia product pages).
+  # Long-tail accelerators in NO machine-readable source we have.
   #
-  # Apple M-series is NOT here: as of v0.3.0 it is scraped per variant
-  # (M1/M1 Pro/M1 Max/M1 Ultra ... M5 Max) from the "Comparison of M-series
-  # processors" table on https://en.wikipedia.org/wiki/Apple_silicon, which
-  # supplies GPU FP32 throughput and max unified memory that the four
-  # collapsed hand entries here carried no specs for.
+  # Everything that a source does cover has been migrated out of this file:
+  #   - Apple M-series -> registry/generated/wikipedia.yaml, per variant
+  #     (M1/M1 Pro/M1 Max/M1 Ultra ... M5 Max) from the "Comparison of M-series
+  #     processors" table, with GPU FP32 and max unified memory.
+  #   - Gaudi 1/2/3, Ascend 310/910, Intel Data Center GPU Max -> generated/
+  #     epoch.yaml from Epoch AI's ML-hardware table, which supplies the specs
+  #     the hand entries never had.
+  #
+  # What remains is here because deleting it would delete the model outright.
+  # Checked against Epoch's 176 rows: none of the entries below appear in it.
+  #   - Xeon Phi: 550 papers, and the whole "Intel peaked at 7.8% in 2015"
+  #     result in the manufacturer section rests on it.
+  #   - Cerebras (3), Graphcore IPU: the only non-GPU challengers in the
+  #     concentration analysis.
+  #   - Arc A770, Inferentia v1, generation-agnostic "Trainium".
+  # Specs stay null for these: no source we trust publishes them per device.
+  #
+  # Jetson (TK1/TX1/TX2/Xavier/Nano/Orin) was dropped in v0.3.0: embedded
+  # inference modules are out of scope (Gebhart, 2026-08-03). Their mentions no
+  # longer resolve, so they leave every model-level series -- ~6,100 S2ORC papers
+  # of reported use, and Jetson Nano/Orin drop out of the top-20 paper-support
+  # figure. Restoring them means `git revert`, not retyping.
   # ------------------------------------------------------------------
-  - {id: nvidia-jetson-tk1, display: "NVIDIA Jetson TK1", manufacturer: nvidia, family: jetson,
-     architecture: kepler, subtype: mobile-gpu, segment: embedded, release: 2014-04,
-     aliases: ["Jetson TK1"]}
-  - {id: nvidia-jetson-tx1, display: "NVIDIA Jetson TX1", manufacturer: nvidia, family: jetson,
-     architecture: maxwell, subtype: mobile-gpu, segment: embedded, release: 2015-11,
-     aliases: ["Jetson TX1", {pattern: "TX1", gate: gpu}, "Tegra X1"]}
-  - {id: nvidia-jetson-tx2, display: "NVIDIA Jetson TX2", manufacturer: nvidia, family: jetson,
-     architecture: pascal, subtype: mobile-gpu, segment: embedded, release: 2017-03,
-     aliases: ["Jetson TX2", {pattern: "TX2", gate: gpu}]}
-  - {id: nvidia-jetson-xavier, display: "NVIDIA Jetson AGX Xavier", manufacturer: nvidia, family: jetson,
-     architecture: volta, subtype: mobile-gpu, segment: embedded, release: 2018-12,
-     aliases: ["Jetson Xavier", "AGX Xavier", "Xavier NX"]}
-  - {id: nvidia-jetson-nano, display: "NVIDIA Jetson Nano", manufacturer: nvidia, family: jetson,
-     architecture: maxwell, subtype: mobile-gpu, segment: embedded, release: 2019-03,
-     aliases: ["Jetson Nano"]}
-  - {id: nvidia-jetson-orin, display: "NVIDIA Jetson AGX Orin", manufacturer: nvidia, family: jetson,
-     architecture: ampere, subtype: mobile-gpu, segment: embedded, release: 2022-03,
-     aliases: ["Jetson Orin", "AGX Orin", "Orin Nano"]}
   - {id: intel-xeon-phi, display: "Intel Xeon Phi", manufacturer: intel, family: xeon-phi,
      architecture: mic, subtype: manycore, segment: datacenter, release: 2012-11,
      aliases: ["Xeon Phi", "Knights Landing", "Knights Corner", {pattern: "KNL", gate: gpu}]}
-  - {id: intel-gaudi, display: "Intel/Habana Gaudi", manufacturer: intel, family: gaudi,
-     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2019-06,
-     aliases: ["Habana Gaudi", {pattern: "Gaudi", case: sensitive, gate: gpu}]}
-  - {id: intel-gaudi2, display: "Intel Gaudi 2", manufacturer: intel, family: gaudi,
-     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2022-05,
-     aliases: ["Gaudi 2"]}
-  - {id: intel-gaudi3, display: "Intel Gaudi 3", manufacturer: intel, family: gaudi,
-     architecture: gaudi, subtype: npu-asic, segment: datacenter, release: 2024-04,
-     aliases: ["Gaudi 3"]}
   - {id: intel-arc-a770, display: "Intel Arc A770", manufacturer: intel, family: arc,
      architecture: xe, subtype: consumer-gpu, segment: consumer, release: 2022-10,
      aliases: ["Arc A770", "Intel Arc"]}
-  - {id: intel-max-gpu, display: "Intel Data Center GPU Max (Ponte Vecchio)", manufacturer: intel,
-     family: max, architecture: xe, subtype: datacenter-gpu, segment: datacenter, release: 2023-01,
-     aliases: ["Ponte Vecchio", "GPU Max 1550", "GPU Max 1100", "Data Center GPU Max"]}
   - {id: cerebras-wse, display: "Cerebras WSE-1", manufacturer: cerebras, family: wse,
      architecture: wse, subtype: npu-asic, segment: datacenter, release: 2019-08,
      aliases: ["Cerebras WSE", "WSE-1", {pattern: "CS-1", gate: gpu}, "wafer scale engine"]}
@@ -201,12 +187,6 @@ models:
   - {id: graphcore-ipu, display: "Graphcore IPU", manufacturer: graphcore, family: ipu,
      architecture: ipu, subtype: npu-asic, segment: datacenter, release: 2018-11,
      aliases: ["Graphcore IPU", "Graphcore", {pattern: "IPU", gate: gpu}, "GC200", "Bow IPU"]}
-  - {id: huawei-ascend-310, display: "Huawei Ascend 310", manufacturer: huawei, family: ascend,
-     architecture: davinci, subtype: npu-asic, segment: datacenter, release: 2018-10,
-     aliases: ["Ascend 310"]}
-  - {id: huawei-ascend-910, display: "Huawei Ascend 910", manufacturer: huawei, family: ascend,
-     architecture: davinci, subtype: npu-asic, segment: datacenter, release: 2019-08,
-     aliases: ["Ascend 910"]}
   - {id: aws-trainium, display: "AWS Trainium", manufacturer: amazon, family: trainium,
      architecture: trainium, subtype: npu-asic, segment: cloud, release: 2022-10,
      aliases: ["Trainium", {pattern: "Trn1", gate: gpu}]}

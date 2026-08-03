@@ -1,0 +1,1257 @@
+source: https://epoch.ai/data/machine-learning-hardware
+source_file: registry/cache/ml_hardware.csv
+models:
+- id: nvidia-tesla-p4
+  display: NVIDIA Tesla P4
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2016-09
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 5704.0
+  fp64_gflops: 178.2
+  fp16_tensor_gflops: null
+  vram_gb: 8.0
+  tdp_w: 75.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA Tesla P4
+  - Tesla P4
+  - NVIDIA P4
+  notes: null
+- id: nudt-mt-2000
+  display: MT-2000
+  manufacturer: nudt
+  architecture: null
+  subtype: manycore
+  segment: datacenter
+  release: 2017-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 4920.0
+  fp64_gflops: 2460.0
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 240.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - MT\-2000
+  - NUDT MT\-2000
+  notes: null
+- id: pezy-sc2
+  display: PEZY-SC2
+  manufacturer: pezy
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2017-06
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 8192.0
+  fp64_gflops: 4100.0
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 180.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - PEZY\-SC2
+  - PEZY PEZY\-SC2
+  notes: null
+- id: nvidia-tesla-t4
+  display: NVIDIA Tesla T4
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2018-09
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 8141.0
+  fp64_gflops: 254.4
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 70.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA Tesla T4
+  - Tesla T4
+  - NVIDIA T4
+  notes: null
+- id: huawei-ascend-310
+  display: Huawei Ascend 310
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2018-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 8.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 310
+  - Ascend 310
+  - Huawei 310
+  notes: null
+- id: baidu-kunlun-i
+  display: Baidu Kunlun I
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 16000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun I
+  - Kunlun I
+  notes: null
+- id: cambricon-mlu270-f4
+  display: Cambricon MLU270-F4
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-06
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU270\-F4
+  - MLU270\-F4
+  notes: null
+- id: cambricon-mlu270-s4
+  display: Cambricon MLU270-S4
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-06
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 70.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU270\-S4
+  - MLU270\-S4
+  notes: null
+- id: intel-habana-gaudi-hl-205
+  display: Intel Habana GAUDI HL-205
+  manufacturer: intel
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-06
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 300.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Habana GAUDI HL\-205
+  - Habana GAUDI HL\-205
+  - Intel GAUDI HL\-205
+  - GAUDI HL\-205
+  - Habana Gaudi
+  - pattern: Gaudi
+    gate: gpu
+    case: sensitive
+  notes: null
+- id: huawei-ascend-910
+  display: Huawei Ascend 910
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 310.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910
+  - Ascend 910
+  - Huawei 910
+  notes: null
+- id: huawei-ascend-910a
+  display: Huawei Ascend 910A
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 310.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910A
+  - Ascend 910A
+  - Huawei 910A
+  - pattern: 910A
+    gate: gpu
+  notes: null
+- id: huawei-ascend-910a-premium
+  display: Huawei Ascend 910A Premium
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910A Premium
+  - Ascend 910A Premium
+  - Huawei 910A Premium
+  - 910A Premium
+  notes: null
+- id: huawei-ascend-910a-pro
+  display: Huawei Ascend 910A Pro
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2019-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910A Pro
+  - Ascend 910A Pro
+  - Huawei 910A Pro
+  - 910A Pro
+  notes: null
+- id: alibaba-t-head-hanguang-800
+  display: T-Head Hanguang 800
+  manufacturer: alibaba
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2019-09
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 276.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - T\-Head Hanguang 800
+  - Hanguang 800
+  notes: null
+- id: baidu-kunlun-k200
+  display: Baidu Kunlun K200
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2020-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 16000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun K200
+  - Kunlun K200
+  notes: null
+- id: google-tpu-v4i
+  display: Google TPU v4i
+  manufacturer: google
+  architecture: null
+  subtype: tpu
+  segment: cloud
+  release: 2020-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 138000.0
+  vram_gb: 8.0
+  tdp_w: 175.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Google TPU v4i
+  - TPU v4i
+  notes: null
+- id: cambricon-mlu290-m5
+  display: Cambricon MLU290-M5
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 350.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU290\-M5
+  - MLU290\-M5
+  notes: null
+- id: iluvatar-tianshu-zhixin-tiangai-100
+  display: Tianshu Zhixin Tiangai 100
+  manufacturer: iluvatar
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2021-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 32000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 250.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Tianshu Zhixin Tiangai 100
+  - Iluvatar Tianshu Zhixin Tiangai 100
+  - BI\-V100
+  notes: null
+- id: nvidia-a10g
+  display: NVIDIA A10G
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2021-04
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 31500.0
+  fp64_gflops: 985.0
+  fp16_tensor_gflops: null
+  vram_gb: 24.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA A10G
+  - pattern: A10G
+    gate: gpu
+  notes: null
+- id: hygon-shensuan-1
+  display: Shensuan-1
+  manufacturer: hygon
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2021-07
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 350.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Shensuan\-1
+  - Hygon Shensuan\-1
+  notes: null
+- id: baidu-kunlun-ii
+  display: Baidu Kunlun II
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun II
+  - Kunlun II
+  notes: null
+- id: tesla-d1-dojo
+  display: Tesla D1 Dojo
+  manufacturer: tesla
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 22600.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 362000.0
+  vram_gb: null
+  tdp_w: 400.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Tesla D1 Dojo
+  - D1 Dojo
+  notes: null
+- id: cambricon-mlu370-s4
+  display: Cambricon MLU370-S4
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 18000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 24.0
+  tdp_w: 75.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU370\-S4
+  - MLU370\-S4
+  notes: null
+- id: cambricon-mlu370-s8
+  display: Cambricon MLU370-S8
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 18000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 48.0
+  tdp_w: 75.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU370\-S8
+  - MLU370\-S8
+  notes: null
+- id: cambricon-mlu370-x4
+  display: Cambricon MLU370-X4
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2021-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 24000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 24.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU370\-X4
+  - MLU370\-X4
+  notes: null
+- id: baidu-kunlun-r100
+  display: Baidu Kunlun R100
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 20000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 12.0
+  tdp_w: 100.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun R100
+  - Kunlun R100
+  notes: null
+- id: baidu-kunlun-r200
+  display: Baidu Kunlun R200
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 32000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 150.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun R200
+  - Kunlun R200
+  notes: null
+- id: baidu-kunlun-r200-8f
+  display: Baidu Kunlun R200-8F
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 32000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 160.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun R200\-8F
+  - Kunlun R200\-8F
+  notes: null
+- id: cambricon-mlu370-x8
+  display: Cambricon MLU370-X8
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 24000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 48.0
+  tdp_w: 250.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon MLU370\-X8
+  - MLU370\-X8
+  notes: null
+- id: huawei-ascend-910b
+  display: Huawei Ascend 910B
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 94000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 400.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910B
+  - Ascend 910B
+  - Huawei 910B
+  - pattern: 910B
+    gate: gpu
+  notes: null
+- id: intel-habana-gaudi2
+  display: Intel Habana Gaudi2
+  manufacturer: intel
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-05
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 450000.0
+  vram_gb: 96.0
+  tdp_w: 600.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Habana Gaudi2
+  - Habana Gaudi2
+  - Intel Gaudi2
+  - Gaudi2
+  - Gaudi 2
+  notes: null
+- id: nudt-mt-3000
+  display: MT-3000
+  manufacturer: nudt
+  architecture: null
+  subtype: manycore
+  segment: datacenter
+  release: 2022-07
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: 12870.0
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: 256.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - MT\-3000
+  - NUDT MT\-3000
+  notes: null
+- id: biren-br100
+  display: Biren BR100
+  manufacturer: biren
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2022-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 256000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 1024000.0
+  vram_gb: 64.0
+  tdp_w: 550.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Biren BR100
+  - pattern: BR100
+    gate: gpu
+  notes: null
+- id: nvidia-a800
+  display: NVIDIA A800
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2022-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 19490.0
+  fp64_gflops: 9746.0
+  fp16_tensor_gflops: 312000.0
+  vram_gb: 80.0
+  tdp_w: 400.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA A800
+  - pattern: A800
+    gate: gpu
+  notes: null
+- id: amazon-trainium1
+  display: Amazon Trainium1
+  manufacturer: amazon
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2022-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 47500.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 190000.0
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Amazon Trainium1
+  - Trainium1
+  - Trainium 1
+  notes: null
+- id: groqchip-lpu-v1
+  display: GroqChip LPU v1
+  manufacturer: unknown
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2022-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 0.23
+  tdp_w: 215.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - GroqChip LPU v1
+  notes: on-package SRAM only, no external memory
+- id: iluvatar-tianshu-zhixin-zhikai-100
+  display: Tianshu Zhixin Zhikai 100
+  manufacturer: iluvatar
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2022-12
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 24000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Tianshu Zhixin Zhikai 100
+  - Iluvatar Tianshu Zhixin Zhikai 100
+  notes: null
+- id: amd-radeon-instinct-mi300
+  display: AMD Radeon Instinct MI300
+  manufacturer: amd
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 47870.0
+  fp64_gflops: 47870.0
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: 600.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - AMD Radeon Instinct MI300
+  - Radeon Instinct MI300
+  - AMD MI300
+  - pattern: MI300
+    gate: gpu
+  notes: null
+- id: baidu-kunlun-rg800
+  display: Baidu Kunlun RG800
+  manufacturer: baidu
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 32000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: 130.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Baidu Kunlun RG800
+  - Kunlun RG800
+  notes: null
+- id: intel-data-center-gpu-max-1100
+  display: Intel Data Center GPU Max 1100
+  manufacturer: intel
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 22220.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 48.0
+  tdp_w: 300.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Data Center GPU Max 1100
+  - Data Center GPU Max 1100
+  notes: null
+- id: intel-data-center-gpu-max-1350
+  display: Intel Data Center GPU Max 1350
+  manufacturer: intel
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 44440.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 96.0
+  tdp_w: 450.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Data Center GPU Max 1350
+  - Data Center GPU Max 1350
+  notes: null
+- id: intel-data-center-gpu-max-1550
+  display: Intel Data Center GPU Max 1550
+  manufacturer: intel
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 52430.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: 600.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Data Center GPU Max 1550
+  - Data Center GPU Max 1550
+  notes: null
+- id: metax-mxc500
+  display: MetaX MXC500
+  manufacturer: metax
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 18000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 64.0
+  tdp_w: 450.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - MetaX MXC500
+  - MXC500
+  - MXC 500
+  notes: null
+- id: nvidia-gh100
+  display: NVIDIA GH100
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 66910.0
+  fp64_gflops: 33450.0
+  fp16_tensor_gflops: 989500.0
+  vram_gb: null
+  tdp_w: 700.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA GH100
+  - pattern: GH100
+    gate: gpu
+  notes: null
+- id: nvidia-l4
+  display: NVIDIA L4
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 30290.0
+  fp64_gflops: 473.3
+  fp16_tensor_gflops: 121000.0
+  vram_gb: 24.0
+  tdp_w: 72.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA L4
+  notes: null
+- id: amazon-aws-inferentia2
+  display: AWS Inferentia2
+  manufacturer: amazon
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2023-04
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 47500.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 190000.0
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - AWS Inferentia2
+  - Inferentia2
+  - Inferentia 2
+  notes: null
+- id: meta-mtia-v1
+  display: Meta MTIA v1
+  manufacturer: meta
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2023-05
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 1600.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 51200.0
+  vram_gb: 0.128
+  tdp_w: 25.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Meta MTIA v1
+  - MTIA v1
+  - MTIA 100
+  notes: on-package SRAM only, no external memory
+- id: metax-mxn100
+  display: MetaX MXN100
+  manufacturer: metax
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-06
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - MetaX MXN100
+  - MXN100
+  - MXN 100
+  notes: null
+- id: nvidia-gh200
+  display: NVIDIA GH200
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 66910.0
+  fp64_gflops: 33450.0
+  fp16_tensor_gflops: 989500.0
+  vram_gb: null
+  tdp_w: 700.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA GH200
+  - pattern: GH200
+    gate: gpu
+  notes: null
+- id: nvidia-l20
+  display: NVIDIA L20
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-09
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 59350.0
+  fp64_gflops: 927.4
+  fp16_tensor_gflops: 119500.0
+  vram_gb: 48.0
+  tdp_w: 275.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA L20
+  notes: null
+- id: nvidia-hgx-h20
+  display: NVIDIA HGX H20
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 44000.0
+  fp64_gflops: 1000.0
+  fp16_tensor_gflops: 148000.0
+  vram_gb: 96.0
+  tdp_w: 400.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA HGX H20
+  - HGX H20
+  - NVIDIA H20
+  notes: null
+- id: nvidia-l2
+  display: NVIDIA L2
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 24100.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 96500.0
+  vram_gb: 24.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA L2
+  notes: null
+- id: sunway-sw26010-pro
+  display: Sunway SW26010-Pro
+  manufacturer: sunway
+  architecture: null
+  subtype: manycore
+  segment: datacenter
+  release: 2023-11
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 27600.0
+  fp64_gflops: 13800.0
+  fp16_tensor_gflops: null
+  vram_gb: 96.0
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Sunway SW26010\-Pro
+  - SW26010\-Pro
+  notes: null
+- id: amd-radeon-instinct-mi308x
+  display: AMD Radeon Instinct MI308X
+  manufacturer: amd
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-12
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 81720.0
+  fp64_gflops: 81720.0
+  fp16_tensor_gflops: 653700.0
+  vram_gb: 192.0
+  tdp_w: 750.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - AMD Radeon Instinct MI308X
+  - Radeon Instinct MI308X
+  - AMD MI308X
+  - MI308X
+  notes: null
+- id: moore-threads-mtt-s4000
+  display: MTT S4000
+  manufacturer: moore-threads
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2023-12
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 25000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 100000.0
+  vram_gb: 48.0
+  tdp_w: 450.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - MTT S4000
+  - Moore Threads MTT S4000
+  notes: null
+- id: meta-mtia-v2
+  display: Meta MTIA v2
+  manufacturer: meta
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2024-04
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 2760.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 177000.0
+  vram_gb: 0.256
+  tdp_w: 90.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Meta MTIA v2
+  - MTIA v2
+  - MTIA 200
+  notes: on-package SRAM only, no external memory
+- id: microsoft-maia-100
+  display: Maia 100
+  manufacturer: microsoft
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2024-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 800000.0
+  vram_gb: null
+  tdp_w: 500.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Maia 100
+  - Microsoft Maia 100
+  notes: null
+- id: intel-habana-gaudi3
+  display: Intel Habana Gaudi3
+  manufacturer: intel
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2024-09
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 14300.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 1678000.0
+  vram_gb: 128.0
+  tdp_w: 900.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Intel Habana Gaudi3
+  - Habana Gaudi3
+  - Intel Gaudi3
+  - Gaudi3
+  - Gaudi 3
+  notes: null
+- id: cambricon-siyuan-590
+  display: Cambricon Siyuan 590
+  manufacturer: cambricon
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2024-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: 200.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Cambricon Siyuan 590
+  - Siyuan 590
+  notes: null
+- id: huawei-ascend-910c
+  display: Huawei Ascend 910C
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2024-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 800000.0
+  vram_gb: 128.0
+  tdp_w: 700.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 910C
+  - Ascend 910C
+  - Huawei 910C
+  - pattern: 910C
+    gate: gpu
+  notes: null
+- id: amazon-trainium2
+  display: Amazon Trainium2
+  manufacturer: amazon
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2024-12
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 667000.0
+  vram_gb: 96.0
+  tdp_w: 500.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Amazon Trainium2
+  - Trainium2
+  - Trainium 2
+  notes: null
+- id: nvidia-gb200
+  display: NVIDIA GB200
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2025-02
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 90000.0
+  fp64_gflops: 45000.0
+  fp16_tensor_gflops: 2500000.0
+  vram_gb: 186.0
+  tdp_w: 1200.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA GB200
+  - pattern: GB200
+    gate: gpu
+  notes: null
+- id: nvidia-gb300
+  display: NVIDIA GB300
+  manufacturer: nvidia
+  architecture: null
+  subtype: datacenter-gpu
+  segment: datacenter
+  release: 2025-08
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 80000.0
+  fp64_gflops: 1300.0
+  fp16_tensor_gflops: 2500000.0
+  vram_gb: 287.5
+  tdp_w: 1400.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - NVIDIA GB300
+  - pattern: GB300
+    gate: gpu
+  notes: null
+- id: huawei-ascend-920
+  display: Huawei Ascend 920
+  manufacturer: huawei
+  architecture: null
+  subtype: npu-asic
+  segment: datacenter
+  release: 2025-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 900000.0
+  vram_gb: null
+  tdp_w: null
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Huawei Ascend 920
+  - Ascend 920
+  - Huawei 920
+  notes: null
+- id: amazon-trainium3
+  display: Amazon Trainium3
+  manufacturer: amazon
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2025-12
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: 183000.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 671000.0
+  vram_gb: null
+  tdp_w: 700.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Amazon Trainium3
+  - Trainium3
+  - Trainium 3
+  notes: null
+- id: microsoft-maia-200
+  display: Microsoft Maia 200
+  manufacturer: microsoft
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2026-01
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 1268000.0
+  vram_gb: 216.0
+  tdp_w: 750.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Microsoft Maia 200
+  - Maia 200
+  notes: null
+- id: meta-mtia-300
+  display: Meta MTIA 300
+  manufacturer: meta
+  architecture: null
+  subtype: npu-asic
+  segment: cloud
+  release: 2026-03
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: 600000.0
+  vram_gb: 216.0
+  tdp_w: 800.0
+  spec_source: https://epoch.ai/data/machine-learning-hardware
+  aliases:
+  - Meta MTIA 300
+  - MTIA 300
+  notes: null

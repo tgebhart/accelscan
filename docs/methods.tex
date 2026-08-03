@@ -114,7 +114,18 @@ page, the Tensor Processing Unit page, and the ``Comparison of M-series
 processors'' table of the Apple silicon page, collapsing per-variant rows (memory
 size, form factor, GPU-core bin, edition) into canonical models and merging duplicate entries
 across pages by taking the earliest launch date, the union of aliases, and the
-element-wise maximum of specifications. Only rows with a parseable launch date
+element-wise maximum of specifications. A second generator
+(\texttt{scripts/build\_epoch\_registry.py}) adds the accelerators those pages
+omit, from Epoch AI's machine-learning-hardware table
+(\url{https://epoch.ai/data/machine-learning-hardware}, 176 devices, 2008--2026):
+Chinese domestic silicon (Huawei Ascend, Cambricon MLU, Baidu Kunlun, Biren,
+MetaX, Iluvatar), first-party cloud parts (Meta MTIA, Microsoft Maia, AWS
+Trainium and Inferentia generations), export-control SKUs (A800, HGX H20,
+MI308X), and datacenter GPUs missing from the Wikipedia lists, of which the
+consequential one is the T4. It emits only devices the registry does not already
+resolve to a model entry, and Epoch's FLOPS convention was verified to match ours
+before use --- dense and non-sparse (H100 SXM tensor FP16 $=989.4$, not $1979$,
+TFLOPS), reproducing the scraped Wikipedia figures for shared parts. Only rows with a parseable launch date
 $\ge 2000$ are kept; mobile, integrated, console and chipset sections are
 skipped. No specification number is ever taken from model memory: each entry
 records a \texttt{spec\_source} naming the source page and table heading.
@@ -122,20 +133,25 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- context-gate vocabularies, generic and architecture entries, and
 overrides, which replace generated entries by id.
 
-Registry v0.3.0 contains $1{,}153$ entries: $1{,}131$ specific models, 13
+Registry v0.3.0 contains $1{,}208$ entries: $1{,}186$ specific models, 13
 architectures (Fermi, Kepler, \ldots), and 9 generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
-reporting is measurable). By manufacturer: NVIDIA 562, AMD 544, Apple 18,
-Google 10, Intel 6, Cerebras 3, Huawei 2, Amazon 2, Graphcore 1. By market
-segment: consumer 922, workstation 130, datacenter 62, cloud 11, embedded 6.
+reporting is measurable), spanning 24 manufacturers. The largest are NVIDIA 568,
+AMD 546, Apple 18, Google 11, and then a long tail of eight or fewer entries each
+(Huawei, Cambricon, Intel, Baidu, Amazon, Meta, Cerebras, Microsoft, MetaX,
+Iluvatar, Biren, Graphcore, \ldots). By market segment: consumer 922,
+workstation 130, datacenter 112, cloud 22. Embedded inference modules (the
+NVIDIA Jetson line) are out of scope and carry no registry entry, so a Jetson
+mention resolves only as an NVIDIA brand mention and never enters a model-level
+series.
 Apple silicon is carried per chip variant (M1, M1 Pro, M1 Max, M1 Ultra, \ldots,
 M5 Max) rather than per generation, because within a generation the variants
 differ by up to $8\times$ in GPU throughput and $16\times$ in addressable memory.
-Release dates span 2000--2026 and are populated for all $1{,}131$ models, since
+Release dates span 2000--2026 and are populated for all $1{,}186$ models, since
 the frontier-lag and half-life estimands depend on them. Per-device
-specification coverage across models is: memory $97.9\%$, FP32 $64.3\%$, FP64
-$46.0\%$, dense FP16 tensor throughput $5.7\%$ (defined only for post-Volta
-parts), TDP $68.1\%$. Missing specifications remain null and are excluded
+specification coverage across models is: memory $97.6\%$, FP32 $64.9\%$, FP64
+$45.3\%$, dense FP16 tensor throughput $7.8\%$ (defined only for post-Volta
+parts), TDP $69.8\%$. Missing specifications remain null and are excluded
 per-axis rather than zero-filled.
 
 Following the FLOPS convention required for cross-generation comparability, we
