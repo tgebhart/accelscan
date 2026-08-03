@@ -19,7 +19,9 @@ cases:
   - text: "MI250X GPUs on the Frontier supercomputer"
     expect: [amd-mi250x, generic-gpu]
   - text: "NVIDIA's Fermi GPU architecture doubled throughput"
-    expect: [arch-fermi, generic-gpu, vendor-nvidia]
+    # architecture words were removed in v0.3.0: the generation is metadata on the
+    # model entries, so only the brand and the generic term match here
+    expect: [generic-gpu, vendor-nvidia]
   - text: "we simulated the model on 4 GPUs"
     expect: [generic-gpu]
   - text: "an Apple M2 MacBook Pro was used for analysis"

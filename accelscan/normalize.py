@@ -20,6 +20,7 @@ from accelscan.registry import CompiledRegistry, load_registry
 
 # rank when a string matches several registry entries
 _KIND_RANK = {'model': 0, 'architecture': 1, 'generic': 2}
+_PARENS = re.compile(r'[()\[\]]')
 
 # Strings the LLM emits when it decides the registry hit was NOT hardware, or
 # that name the non-accelerator meaning outright. These are *successful*
@@ -46,10 +47,26 @@ def canonicalize_one(reg: CompiledRegistry, text: str | None) -> dict:
     if not text or is_reject(text):
         return {'canonical_model': None, 'canonical_display': None, 'canonical_kind': None}
     matches = reg.match_paragraph(text)
+    # The LLM parenthesises the disambiguator the vendor wrote inline, and a
+    # parenthesis is not one of the separators a multi-word alias tolerates: so
+    # "NVIDIA Titan X (Pascal)" matched only 'Pascal' and 883 used-mentions across
+    # the two corpora were attributed to the *architecture* instead of to the
+    # Titan X that was actually used. Retry on the depunctuated form and let the
+    # longest-span rule choose between the two candidate sets.
+    depunct = _PARENS.sub(' ', text)
+    if depunct != text:
+        matches = matches + reg.match_paragraph(depunct)
     matches = [m for m in matches if not m.gate_required or m.gate_ok]
     if not matches:
         return {'canonical_model': None, 'canonical_display': None, 'canonical_kind': None}
-    best = max(matches, key=lambda m: (m.end - m.start, -_KIND_RANK.get(m.kind, 9)))
+    # A specific model outranks an architecture or a brand outright, not merely on
+    # a tie. Architecture names are long English words and model codes are short,
+    # so longest-span alone sent "NVIDIA Grace Hopper GH200" to the Hopper
+    # architecture rather than to the GH200: 'Hopper' is six characters, 'GH200'
+    # five. No string that names both is better described by the architecture.
+    models = [m for m in matches if m.kind == 'model']
+    best = max(models or matches,
+               key=lambda m: (m.end - m.start, -_KIND_RANK.get(m.kind, 9)))
     model = reg.models[best.model_id]
     return {'canonical_model': model.id, 'canonical_display': model.display,
             'canonical_kind': model.kind}
@@ -81,6 +98,13 @@ OUT_OF_SCOPE = {
     # named bucket rather than in `unknown`, where a scope decision would be
     # indistinguishable from a registry gap: embedded modules, and the two
     # wafer-scale/IPU vendors no source we parse publishes per-device specs for.
+    # Architecture-only reporting ("we used NVIDIA Ampere GPUs"). Not a scope
+    # decision and not a gap: the paper named a generation, not a device, so there
+    # is no model to resolve to and no per-device spec to attach. Bucketed so the
+    # share of architecture-grain reporting stays measurable.
+    'architecture-only': re.compile(
+        r'\b(Fermi|Kepler|Maxwell|Pascal|Volta|Turing|Ampere|Ada Lovelace|Hopper'
+        r'|Blackwell|GCN|RDNA\d?|CDNA\d?|Graphics Core Next)\b'),
     'embedded-module': re.compile(r'jetson|tegra|\borin\b|xavier', re.IGNORECASE),
     'wafer-scale-ipu': re.compile(r'cerebras|graphcore|\bIPU\b|\bWSE-?\d?\b|\bCS-[123]\b'),
     'fpga-xilinx': re.compile(r'xilinx|virtex|artix|kintex|spartan|zynq|alveo|zcu|vc707|ultrascale',

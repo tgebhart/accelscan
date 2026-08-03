@@ -135,8 +135,8 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- context-gate vocabularies, generic and architecture entries, and
 overrides, which replace generated entries by id.
 
-Registry v0.3.0 contains $1{,}236$ entries: $1{,}217$ specific models, 10
-NVIDIA architectures (Fermi, Kepler, \ldots), and 9 generic terms (\texttt{GPU},
+Registry v0.3.0 contains $1{,}226$ entries: $1{,}217$ specific models and 9
+generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
 reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 568,
 AMD 546, Intel 43, Apple 18 and Google 11, then a long tail of eight or fewer
@@ -157,10 +157,13 @@ inference modules (the NVIDIA Jetson line) and wafer-scale/IPU parts (Cerebras,
 Graphcore), for which no source we parse publishes per-device specifications.
 Their mentions are bucketed as out-of-scope in the unresolved audit rather than
 counted as registry gaps, and they never enter a model-level series. Architecture
-entries exist for NVIDIA only, whose architecture names are routinely used as
-standalone hardware references (``trained on Hopper''); AMD's GCN/RDNA/CDNA are
-carried as a metadata column on the model entries instead, since an
-architecture-only AMD mention occurs in 2 papers per corpus.
+names (Pascal, Hopper, CDNA, \ldots) likewise have no entry of their own: an
+architecture is a generation rather than a device, has no per-device
+specification, and is already carried as a metadata column on every model entry,
+so an architecture-grain mention resolves to its vendor and is counted as
+brand-level reporting. This costs nothing at model level --- $278{,}978$ S2ORC and
+$317{,}955$ arXiv model-kind used-mentions are identical with and without those
+entries --- because an architecture was never model-specific.
 Apple silicon is carried per chip variant (M1, M1 Pro, M1 Max, M1 Ultra, \ldots,
 M5 Max) rather than per generation, because within a generation the variants
 differ by up to $8\times$ in GPU throughput and $16\times$ in addressable memory.

@@ -2,11 +2,11 @@
 #
 # Model entries are GENERATED from Wikipedia/vendor sources by
 # accelscan/scripts/build_registry.py into registry/generated/*.yaml.
-# This file holds ONLY what no machine-readable source can give: the
-# context-term gate vocabularies, the generic terms, and the NVIDIA architecture
-# words. Even the vendor brand triggers (vendor-nvidia, vendor-amd) are now
-# derived from the product-line names in the tables, because hand-listing them
-# gave NVIDIA three brands and AMD one while the tables carry five for AMD. Every specific model now comes from a generator --
+# This file holds ONLY what no machine-readable source can give: the context-term
+# gate vocabularies and the generic terms (GPU, CUDA, TPU, ...), which are what
+# make generic-only reporting measurable. Vendor brand triggers are derived from
+# the product-line names in the tables, and every specific model comes from a
+# generator --
 # registry/generated/wikipedia.yaml (NVIDIA, AMD, TPU, Apple M-series, Xeon Phi,
 # Intel Arc) and registry/generated/epoch.yaml (Epoch AI's ML-hardware table:
 # Chinese domestic silicon, first-party cloud parts, export-control SKUs, Gaudi,
@@ -14,11 +14,13 @@
 # registry/generated/*.yaml; an entry here with the same id overrides a
 # generated one, which is the escape hatch if a scrape ever goes wrong.
 #
-# Two models were dropped rather than migrated (v0.3.0, Gebhart): Jetson, as
-# embedded modules are out of scope, and Cerebras/Graphcore, which no source we
-# parse carries. Their mentions no longer resolve to a model, so they leave the
-# model-level series; the LLM still records their manufacturer, so they remain
-# visible in any-mention vendor counts.
+# Dropped rather than migrated (v0.3.0, Gebhart): Jetson (embedded modules are out
+# of scope), Cerebras/Graphcore (no source we parse carries them), and the
+# architecture words for both vendors -- an architecture is a generation, not a
+# device, it has no per-device specs, and the generated model entries already
+# carry it as a metadata column. All of these are bucketed by
+# `normalize.classify_unresolved` so a descoping decision stays distinguishable
+# from a registry gap; the LLM still records the manufacturer either way.
 #
 # Pattern conventions (enforced/expanded by accelscan/registry.py):
 #   - Literal spaces in patterns compile to [\s-]* ('RTX 3090' matches
@@ -92,46 +94,3 @@ models:
     subtype: generic-accelerator
     kind: generic
     aliases: ["hardware accelerator", "AI accelerator", "accelerator card"]
-
-  # ------------------------------------------------------------------
-  # Architecture words (gated; Fermi=physicist, Pascal=language/person,
-  # Turing/Hopper=people, Ampere=unit — all case-sensitive words)
-  #
-  # NVIDIA only. AMD's GCN/RDNA/CDNA were removed in v0.3.0: the generated AMD
-  # entries already carry the architecture as metadata (gcn-1..5, rdna-1..4,
-  # cdna-1..4), so an architecture-level breakdown works from the column for any
-  # paper that names a model, and architecture-only AMD mentions are rare enough
-  # to be immaterial -- 5 used mentions in 2 S2ORC papers, 2 in 2 arXiv papers.
-  # NVIDIA's stay because its architecture words are used as standalone hardware
-  # references far more often ("trained on Hopper", "an Ampere GPU").
-  # ------------------------------------------------------------------
-  - {id: arch-fermi, display: "NVIDIA Fermi architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2010-03,
-     aliases: [{pattern: "Fermi", gate: gpu, case: sensitive}]}
-  - {id: arch-kepler, display: "NVIDIA Kepler architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2012-03,
-     aliases: [{pattern: "Kepler", gate: gpu, case: sensitive}]}
-  - {id: arch-maxwell, display: "NVIDIA Maxwell architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2014-02,
-     aliases: [{pattern: "Maxwell", gate: gpu, case: sensitive}]}
-  - {id: arch-pascal, display: "NVIDIA Pascal architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2016-05,
-     aliases: [{pattern: "Pascal", gate: gpu, case: sensitive}]}
-  - {id: arch-volta, display: "NVIDIA Volta architecture", manufacturer: nvidia,
-     subtype: datacenter-gpu, kind: architecture, release: 2017-05,
-     aliases: [{pattern: "Volta", gate: gpu, case: sensitive}]}
-  - {id: arch-turing, display: "NVIDIA Turing architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2018-09,
-     aliases: [{pattern: "Turing", gate: gpu, case: sensitive}]}
-  - {id: arch-ampere, display: "NVIDIA Ampere architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2020-05,
-     aliases: [{pattern: "Ampere", gate: gpu, case: sensitive}]}
-  - {id: arch-ada, display: "NVIDIA Ada Lovelace architecture", manufacturer: nvidia,
-     subtype: generic-gpu, kind: architecture, release: 2022-10,
-     aliases: [{pattern: "Ada Lovelace", gate: gpu}]}
-  - {id: arch-hopper, display: "NVIDIA Hopper architecture", manufacturer: nvidia,
-     subtype: datacenter-gpu, kind: architecture, release: 2022-03,
-     aliases: [{pattern: "Hopper", gate: gpu, case: sensitive}]}
-  - {id: arch-blackwell, display: "NVIDIA Blackwell architecture", manufacturer: nvidia,
-     subtype: datacenter-gpu, kind: architecture, release: 2024-03,
-     aliases: [{pattern: "Blackwell", gate: gpu, case: sensitive}]}

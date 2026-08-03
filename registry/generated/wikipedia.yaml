@@ -58,6 +58,9 @@ models:
   - pattern: Tesla
     gate: gpu
     case: sensitive
+  - pattern: TITAN
+    gate: gpu
+    case: sensitive
   - pattern: NVIDIA
     gate: gpu
     case: insensitive
@@ -11278,6 +11281,7 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units#GeForce 700 series
   aliases:
   - GeForce GTX TITAN
+  - GTX TITAN
 - id: amd-radeon-hd-7790
   display: AMD Radeon HD 7790
   manufacturer: amd
@@ -12570,6 +12574,7 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units#GeForce 700 series
   aliases:
   - GeForce GTX TITAN Black
+  - GTX TITAN Black
 - id: amd-firepro-w9100
   display: AMD FirePro W9100
   manufacturer: amd
@@ -12832,6 +12837,7 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units#GeForce 700 series
   aliases:
   - GeForce GTX TITAN Z
+  - GTX TITAN Z
 - id: amd-firepro-w8100
   display: AMD FirePro W8100
   manufacturer: amd
@@ -13675,6 +13681,8 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units#GeForce 900 series
   aliases:
   - GeForce GTX TITAN X
+  - GTX TITAN X
+  - TITAN X Maxwell
 - id: nvidia-quadro-m6000
   display: NVIDIA Quadro M6000
   manufacturer: nvidia
@@ -20416,8 +20424,8 @@ models:
     series
   aliases:
   - RTX PRO 5000 Blackwell
-- id: nvidia-rtx-pro-6000-blackwell-workstation
-  display: NVIDIA RTX PRO 6000 Blackwell Workstation
+- id: nvidia-rtx-pro-6000-blackwell
+  display: NVIDIA RTX PRO 6000 Blackwell
   manufacturer: nvidia
   family: rtx-pro-blackwell-series
   architecture: blackwell
@@ -20433,7 +20441,7 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units#RTX PRO Blackwell
     series
   aliases:
-  - RTX PRO 6000 Blackwell Workstation
+  - RTX PRO 6000 Blackwell
 - id: nvidia-geforce-rtx-5060-ti
   display: NVIDIA GeForce RTX 5060 Ti
   manufacturer: nvidia

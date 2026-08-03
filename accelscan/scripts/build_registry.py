@@ -81,7 +81,7 @@ DC_SUFFIX = re.compile(
     r'|GPU Computing)\b', re.IGNORECASE)
 VARIANT_TOKEN = re.compile(
     r'^(PCIe|SXM\d*|NVL|NVLink|FHHL|HGX|mezzanine|OEM|rev\.?|\d+\s?GB|GB|\d+G'
-    r'|\d{3,4}SP|Eyefinity|Edition|Founders)$', re.IGNORECASE)
+    r'|\d{3,4}SP|Eyefinity|Edition|Founders|Workstation)$', re.IGNORECASE)
 BRAND_TOKENS = {'amd', 'ati', 'nvidia', 'instinct'}
 SHORT_CODE = re.compile(r'^[A-Z]{1,2}I?\d{2,4}[A-Za-z]{0,2}$')
 DISTINCTIVE_PREFIX = re.compile(
@@ -112,6 +112,13 @@ NVIDIA_SERIES_ARCH = [
 
 TPU_EXTRA_ALIASES = {'v6e': [{'pattern': 'Trillium', 'gate': 'tpu', 'case': 'sensitive'}],
                      'v7': [{'pattern': 'Ironwood', 'gate': 'tpu', 'case': 'sensitive'}]}
+
+# Two cards were marketed as TITAN X: the 2015 Maxwell one (listed as GeForce GTX
+# TITAN X) and the 2016 Pascal one. Papers disambiguate with the architecture, and
+# the Pascal entry's generated alias already has that shape ('TITAN X Pascal'),
+# so the Maxwell one needs the mirror. Bare 'TITAN X' stays unresolved on purpose:
+# it is genuinely ambiguous between the two.
+EXTRA_MODEL_ALIASES = {'nvidia-geforce-gtx-titan-x': ['TITAN X Maxwell']}
 
 
 def fetch(name: str, url: str, use_cache: bool = True) -> str:
@@ -209,7 +216,10 @@ def build_aliases(name: str, manufacturer: str, release: str) -> list:
     tokens = name.split(' ')
     if tokens[0] in ('GeForce', 'Radeon') and len(tokens) > 1:
         stripped = ' '.join(tokens[1:])
-        if DISTINCTIVE_PREFIX.match(stripped) and re.search(r'\d', stripped):
+        # TITAN names carry no digit, so the digit test alone left 'GTX TITAN X'
+        # and 'GTX TITAN Black' reachable only by their full GeForce name
+        if DISTINCTIVE_PREFIX.match(stripped) and (re.search(r'\d', stripped)
+                                                   or 'titan' in stripped.lower()):
             add(escape_name(stripped))
         elif SHORT_CODE.match(stripped):
             add(escape_name(stripped), gate='gpu')
@@ -850,6 +860,11 @@ def main() -> None:
         else:
             parse_gpu_page(html, manufacturer, url, entries, stats)
 
+    for mid, extra in EXTRA_MODEL_ALIASES.items():
+        if mid not in entries:
+            raise SystemExit(f'EXTRA_MODEL_ALIASES targets {mid}, which the scrape '
+                             f'no longer produces')
+        entries[mid]['aliases'].extend(extra)
     build_vendor_entries(entries)
     models = sorted(entries.values(), key=lambda m: (m['release'] or '', m['id']))
     out = {'sources': {k: v[1] for k, v in SOURCES.items()},
