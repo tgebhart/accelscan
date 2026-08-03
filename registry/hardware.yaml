@@ -111,6 +111,14 @@ models:
   # ------------------------------------------------------------------
   # Architecture words (gated; Fermi=physicist, Pascal=language/person,
   # Turing/Hopper=people, Ampere=unit — all case-sensitive words)
+  #
+  # NVIDIA only. AMD's GCN/RDNA/CDNA were removed in v0.3.0: the generated AMD
+  # entries already carry the architecture as metadata (gcn-1..5, rdna-1..4,
+  # cdna-1..4), so an architecture-level breakdown works from the column for any
+  # paper that names a model, and architecture-only AMD mentions are rare enough
+  # to be immaterial -- 5 used mentions in 2 S2ORC papers, 2 in 2 arXiv papers.
+  # NVIDIA's stay because its architecture words are used as standalone hardware
+  # references far more often ("trained on Hopper", "an Ampere GPU").
   # ------------------------------------------------------------------
   - {id: arch-fermi, display: "NVIDIA Fermi architecture", manufacturer: nvidia,
      subtype: generic-gpu, kind: architecture, release: 2010-03,
@@ -142,14 +150,3 @@ models:
   - {id: arch-blackwell, display: "NVIDIA Blackwell architecture", manufacturer: nvidia,
      subtype: datacenter-gpu, kind: architecture, release: 2024-03,
      aliases: [{pattern: "Blackwell", gate: gpu, case: sensitive}]}
-  # Bare 'GCN' (even GPU-gated) is dominated by Graph Convolutional Networks
-  # in ML papers — only unambiguous forms are allowed.
-  - {id: arch-gcn, display: "AMD GCN architecture", manufacturer: amd,
-     subtype: generic-gpu, kind: architecture, release: 2012-01,
-     aliases: ["AMD GCN", "Graphics Core Next"]}
-  - {id: arch-rdna, display: "AMD RDNA architecture", manufacturer: amd,
-     subtype: consumer-gpu, kind: architecture, release: 2019-07,
-     aliases: [{pattern: "RDNA[1-4]?", gate: gpu}]}
-  - {id: arch-cdna, display: "AMD CDNA architecture", manufacturer: amd,
-     subtype: datacenter-gpu, kind: architecture, release: 2020-11,
-     aliases: [{pattern: "CDNA[1-4]?", gate: gpu}]}

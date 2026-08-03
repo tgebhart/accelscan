@@ -58,8 +58,13 @@ cases:
     expect: []      # intensive-care IPU must not hit graphcore-ipu without GPU context
   - text: "we train a two-layer GCN on a single GPU"
     expect: [generic-gpu]    # graph convolutional network, not AMD GCN
+  # AMD architecture words were dropped in v0.3.0 (the generated AMD entries
+  # carry the architecture as metadata), so nothing matches here: 'AMD' is gated
+  # and this sentence has no GPU-context term.
   - text: "optimized kernels for the AMD GCN architecture"
-    expect: [arch-gcn]    # 'AMD' is subsumed by the longer 'AMD GCN' span
+    expect: []
+  - text: "an RDNA2 GPU from AMD"
+    expect: [generic-gpu, vendor-amd]    # 'RDNA2' itself contributes nothing
 
   # ---- gate behavior: bare code without local context fails ----------
   - text: "we used an A100 for training"
