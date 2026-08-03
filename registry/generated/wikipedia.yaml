@@ -4,6 +4,8 @@ sources:
   amd: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units
   tpu: https://en.wikipedia.org/wiki/Tensor_Processing_Unit
   apple: https://en.wikipedia.org/wiki/Apple_silicon
+  xeon_phi: https://en.wikipedia.org/wiki/Xeon_Phi
+  intel_arc: https://en.wikipedia.org/wiki/Intel_Arc
 retrieved: '2026-08-03'
 models:
 - id: nvidia-vanta-lt
@@ -10822,6 +10824,67 @@ models:
   aliases:
   - Radeon HD 7870 XT
   - HD 7870 XT
+- id: intel-xeon-phi
+  display: Intel Xeon Phi
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  aliases:
+  - Xeon Phi
+  - Knights Corner
+  - Knights Landing
+  - Knights Mill
+  - pattern: KNL
+    gate: gpu
+  release: 2012-11
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  kind: model
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
+- id: intel-xeon-phi-3110x
+  display: Intel Xeon Phi 3110X
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2012-11
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1028.0
+  vram_gb: 8.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 3110X
+  - pattern: 3110X
+    gate: gpu
+- id: intel-xeon-phi-5110p
+  display: Intel Xeon Phi 5110P
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2012-11
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1011.0
+  vram_gb: 8.0
+  tdp_w: 225.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 5110P
+  - pattern: 5110P
+    gate: gpu
 - id: nvidia-k20
   display: NVIDIA K20
   manufacturer: nvidia
@@ -11487,6 +11550,120 @@ models:
   aliases:
   - GeForce GTX 780
   - GTX 780
+- id: intel-xeon-phi-3120a
+  display: Intel Xeon Phi 3120A
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1003.0
+  vram_gb: 6.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 3120A
+  - pattern: 3120A
+    gate: gpu
+- id: intel-xeon-phi-3120p
+  display: Intel Xeon Phi 3120P
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1003.0
+  vram_gb: 6.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 3120P
+  - pattern: 3120P
+    gate: gpu
+- id: intel-xeon-phi-31s1p
+  display: Intel Xeon Phi 31S1P
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1003.0
+  vram_gb: 8.0
+  tdp_w: 270.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 31S1P
+  - pattern: 31S1P
+    gate: gpu
+- id: intel-xeon-phi-5120d
+  display: Intel Xeon Phi 5120D
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1011.0
+  vram_gb: 8.0
+  tdp_w: 245.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 5120D
+  - pattern: 5120D
+    gate: gpu
+- id: intel-xeon-phi-7120p
+  display: Intel Xeon Phi 7120P
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1208.0
+  vram_gb: 16.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 7120P
+  - pattern: 7120P
+    gate: gpu
+- id: intel-xeon-phi-7120x
+  display: Intel Xeon Phi 7120X
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2013-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1208.0
+  vram_gb: 16.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 7120X
+  - pattern: 7120X
+    gate: gpu
 - id: nvidia-geforce-gtx-760
   display: NVIDIA GeForce GTX 760
   manufacturer: nvidia
@@ -12124,6 +12301,25 @@ models:
   spec_source: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units#FirePro Mobile series
   aliases:
   - FirePro W6170M
+- id: intel-xeon-phi-7120d
+  display: Intel Xeon Phi 7120D
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: '2014'
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1208.0
+  vram_gb: 16.0
+  tdp_w: 270.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 7120D
+  - pattern: 7120D
+    gate: gpu
 - id: amd-firepro-d300
   display: AMD FirePro D300
   manufacturer: amd
@@ -12429,6 +12625,25 @@ models:
   aliases:
   - Radeon R9 295X2
   - R9 295X2
+- id: intel-xeon-phi-7120a
+  display: Intel Xeon Phi 7120A
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2014-04
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 1208.0
+  vram_gb: 16.0
+  tdp_w: 300.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Design and programming
+  aliases:
+  - Xeon Phi 7120A
+  - pattern: 7120A
+    gate: gpu
 - id: amd-radeon-r7-m265
   display: AMD Radeon R7 M265
   manufacturer: amd
@@ -14737,6 +14952,158 @@ models:
   aliases:
   - Radeon RX 480
   - RX 480
+- id: intel-xeon-phi-7210
+  display: Intel Xeon Phi 7210
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 2662.0
+  vram_gb: 16.0
+  tdp_w: 215.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7210
+  - pattern: '7210'
+    gate: gpu
+- id: intel-xeon-phi-7210f
+  display: Intel Xeon Phi 7210F
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 2662.0
+  vram_gb: 16.0
+  tdp_w: 230.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7210F
+  - pattern: 7210F
+    gate: gpu
+- id: intel-xeon-phi-7230
+  display: Intel Xeon Phi 7230
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 2662.0
+  vram_gb: 16.0
+  tdp_w: 215.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7230
+  - pattern: '7230'
+    gate: gpu
+- id: intel-xeon-phi-7230f
+  display: Intel Xeon Phi 7230F
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 2662.0
+  vram_gb: 16.0
+  tdp_w: 230.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7230F
+  - pattern: 7230F
+    gate: gpu
+- id: intel-xeon-phi-7250
+  display: Intel Xeon Phi 7250
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 3046.0
+  vram_gb: 16.0
+  tdp_w: 215.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7250
+  - pattern: '7250'
+    gate: gpu
+- id: intel-xeon-phi-7250f
+  display: Intel Xeon Phi 7250F
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 3046.0
+  vram_gb: 16.0
+  tdp_w: 230.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7250F
+  - pattern: 7250F
+    gate: gpu
+- id: intel-xeon-phi-7290
+  display: Intel Xeon Phi 7290
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 3456.0
+  vram_gb: 16.0
+  tdp_w: 245.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7290
+  - pattern: '7290'
+    gate: gpu
+- id: intel-xeon-phi-7290f
+  display: Intel Xeon Phi 7290F
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2016-06
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: 3456.0
+  vram_gb: 16.0
+  tdp_w: 260.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7290F
+  - pattern: 7290F
+    gate: gpu
 - id: nvidia-geforce-gtx-1070
   display: NVIDIA GeForce GTX 1070
   manufacturer: nvidia
@@ -15840,6 +16207,82 @@ models:
   aliases:
   - Radeon E9175
   - pattern: E9175
+    gate: gpu
+- id: intel-xeon-phi-7235
+  display: Intel Xeon Phi 7235
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2017-10
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: null
+  vram_gb: 16.0
+  tdp_w: 250.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7235
+  - pattern: '7235'
+    gate: gpu
+- id: intel-xeon-phi-7255
+  display: Intel Xeon Phi 7255
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2017-10
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: null
+  vram_gb: 16.0
+  tdp_w: 215.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7255
+  - pattern: '7255'
+    gate: gpu
+- id: intel-xeon-phi-7285
+  display: Intel Xeon Phi 7285
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2017-10
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: null
+  vram_gb: 16.0
+  tdp_w: 250.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7285
+  - pattern: '7285'
+    gate: gpu
+- id: intel-xeon-phi-7295
+  display: Intel Xeon Phi 7295
+  manufacturer: intel
+  family: xeon-phi
+  architecture: mic
+  subtype: manycore
+  segment: datacenter
+  release: 2017-10
+  release_source: https://en.wikipedia.org/wiki/Xeon_Phi
+  fp32_gflops: null
+  fp16_tensor_gflops: null
+  fp64_gflops: null
+  vram_gb: 16.0
+  tdp_w: 320.0
+  spec_source: https://en.wikipedia.org/wiki/Xeon_Phi#Models
+  aliases:
+  - Xeon Phi 7295
+  - pattern: '7295'
     gate: gpu
 - id: nvidia-geforce-gtx-1070-ti
   display: NVIDIA GeForce GTX 1070 Ti
@@ -18356,6 +18799,44 @@ models:
   - Apple M2
   - pattern: M2
     gate: apple
+- id: intel-arc
+  display: Intel Arc
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  aliases:
+  - Intel Arc
+  release: 2022-06
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  kind: model
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
+- id: intel-arc-a380
+  display: Intel Arc A380
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2022-06
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 4198.4
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 6.0
+  tdp_w: 75.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc A380
+  - Arc A380
+  - pattern: A380
+    gate: gpu
 - id: nvidia-geforce-gtx-1630
   display: NVIDIA GeForce GTX 1630
   manufacturer: nvidia
@@ -18375,6 +18856,64 @@ models:
   - GeForce GTX 1630
   - GTX 1630
   - Geforce GTX 1630
+- id: intel-arc-pro-a40
+  display: Intel Arc Pro A40
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2022-08
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 5020.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 6.0
+  tdp_w: 50.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro A40
+  - Arc Pro A40
+- id: intel-arc-pro-a50
+  display: Intel Arc Pro A50
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2022-08
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 5020.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 6.0
+  tdp_w: 75.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro A50
+  - Arc Pro A50
+  - pattern: A50
+    gate: gpu
+- id: intel-arc-a310
+  display: Intel Arc A310
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2022-09
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 3072.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 4.0
+  tdp_w: 75.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc A310
+  - Arc A310
+  - pattern: A310
+    gate: gpu
 - id: amd-radeon-pro-w6300
   display: AMD Radeon Pro W6300
   manufacturer: amd
@@ -18393,6 +18932,46 @@ models:
   aliases:
   - Radeon Pro W6300
   - pattern: W6300
+    gate: gpu
+- id: intel-arc-a750
+  display: Intel Arc A750
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2022-10
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 17203.2
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 8.0
+  tdp_w: 225.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc A750
+  - Arc A750
+  - pattern: A750
+    gate: gpu
+- id: intel-arc-a770
+  display: Intel Arc A770
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2022-10
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 19660.8
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: 225.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc A770
+  - Arc A770
+  - pattern: A770
     gate: gpu
 - id: nvidia-geforce-rtx-3060-ti-gddr6x
   display: NVIDIA GeForce RTX 3060 Ti GDDR6X
@@ -18767,6 +19346,26 @@ models:
   - Apple M2 Ultra
   - pattern: M2 Ultra
     gate: apple
+- id: intel-arc-pro-a60
+  display: Intel Arc Pro A60
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2023-06
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 10040.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 12.0
+  tdp_w: 130.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro A60
+  - Arc Pro A60
+  - pattern: A60
+    gate: gpu
 - id: nvidia-geforce-rtx-4060
   display: NVIDIA GeForce RTX 4060
   manufacturer: nvidia
@@ -18964,6 +19563,26 @@ models:
   aliases:
   - Radeon RX 6750 GRE
   - RX 6750 GRE
+- id: intel-arc-a580
+  display: Intel Arc A580
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2023-10
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 10445.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 8.0
+  tdp_w: 175.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc A580
+  - Arc A580
+  - pattern: A580
+    gate: gpu
 - id: amd-radeon-pro-w7700
   display: AMD Radeon Pro W7700
   manufacturer: amd
@@ -19463,24 +20082,26 @@ models:
   - NVIDIA H200
   - pattern: H200
     gate: gpu
-- id: amd-radeon-rx-9070-gre
-  display: AMD Radeon RX 9070 GRE
-  manufacturer: amd
-  family: radeon-rx-9000-series
-  architecture: rdna-4
+- id: intel-arc-b580
+  display: Intel Arc B580
+  manufacturer: intel
+  family: arc
+  architecture: xe
   subtype: consumer-gpu
   segment: consumer
-  release: '2025'
-  release_source: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units
-  fp32_gflops: 34280.0
-  fp64_gflops: 535.0
+  release: 2024-12
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 13670.0
+  fp64_gflops: 1709.0
   fp16_tensor_gflops: null
   vram_gb: 12.0
-  tdp_w: null
-  spec_source: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units#Radeon RX 9000 series
+  tdp_w: 190.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
   aliases:
-  - Radeon RX 9070 GRE
-  - RX 9070 GRE
+  - Intel Arc B580
+  - Arc B580
+  - pattern: B580
+    gate: gpu
 - id: google-tpu-v7
   display: Google TPU v7
   manufacturer: google
@@ -19503,6 +20124,26 @@ models:
   - pattern: Ironwood
     gate: tpu
     case: sensitive
+- id: intel-arc-b570
+  display: Intel Arc B570
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2025-01
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 11520.0
+  fp64_gflops: 1440.0
+  fp16_tensor_gflops: null
+  vram_gb: 10.0
+  tdp_w: 150.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Desktop
+  aliases:
+  - Intel Arc B570
+  - Arc B570
+  - pattern: B570
+    gate: gpu
 - id: nvidia-geforce-rtx-5080
   display: NVIDIA GeForce RTX 5080
   manufacturer: nvidia
@@ -19776,6 +20417,24 @@ models:
   aliases:
   - GeForce RTX 5060 Ti 16
   - RTX 5060 Ti 16
+- id: amd-radeon-rx-9070-gre
+  display: AMD Radeon RX 9070 GRE
+  manufacturer: amd
+  family: radeon-rx-9000-series
+  architecture: rdna-4
+  subtype: consumer-gpu
+  segment: consumer
+  release: 2025-05
+  release_source: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units
+  fp32_gflops: 34280.0
+  fp64_gflops: 535.0
+  fp16_tensor_gflops: null
+  vram_gb: 12.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units#Radeon RX 9000 series
+  aliases:
+  - Radeon RX 9070 GRE
+  - RX 9070 GRE
 - id: nvidia-geforce-rtx-5060
   display: NVIDIA GeForce RTX 5060
   manufacturer: nvidia
@@ -19870,6 +20529,26 @@ models:
   aliases:
   - Radeon AI Pro R9700
   - pattern: R9700
+    gate: gpu
+- id: intel-arc-pro-b60
+  display: Intel Arc Pro B60
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2025-07
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 12800.0
+  fp64_gflops: 1540.0
+  fp16_tensor_gflops: 197000.0
+  vram_gb: 24.0
+  tdp_w: 200.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro B60
+  - Arc Pro B60
+  - pattern: B60
     gate: gpu
 - id: nvidia-geforce-rtx-5050
   display: NVIDIA GeForce RTX 5050
@@ -19979,6 +20658,26 @@ models:
   aliases:
   - Radeon RX 7700
   - RX 7700
+- id: intel-arc-pro-b50
+  display: Intel Arc Pro B50
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2025-09
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 10650.0
+  fp64_gflops: 1330.0
+  fp16_tensor_gflops: 170000.0
+  vram_gb: 16.0
+  tdp_w: 70.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro B50
+  - Arc Pro B50
+  - pattern: B50
+    gate: gpu
 - id: nvidia-b300
   display: NVIDIA B300
   manufacturer: nvidia
@@ -20095,6 +20794,26 @@ models:
   - TPU v8t
   - TPUv8t
   - Cloud TPU v8t
+- id: intel-arc-pro-b70
+  display: Intel Arc Pro B70
+  manufacturer: intel
+  family: arc
+  architecture: xe
+  subtype: workstation-gpu
+  segment: workstation
+  release: 2026-01
+  release_source: https://en.wikipedia.org/wiki/Intel_Arc
+  fp32_gflops: 22940.0
+  fp64_gflops: null
+  fp16_tensor_gflops: 367000.0
+  vram_gb: 32.0
+  tdp_w: 230.0
+  spec_source: https://en.wikipedia.org/wiki/Intel_Arc#Workstation
+  aliases:
+  - Intel Arc Pro B70
+  - Arc Pro B70
+  - pattern: B70
+    gate: gpu
 - id: apple-m5-max
   display: Apple M5 Max
   manufacturer: apple

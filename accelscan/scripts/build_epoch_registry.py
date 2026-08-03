@@ -335,10 +335,49 @@ def build(csv_path: Path = CSV_PATH) -> tuple[list[dict], dict]:
             if v is not None:
                 prev[field] = v if prev[field] is None else max(prev[field], v)
 
+    add_families(entries)
     for e in entries.values():
         if e['vram_gb'] is not None and e['vram_gb'] < 1:
             e['notes'] = 'on-package SRAM only, no external memory'
     return sorted(entries.values(), key=lambda m: (m['release'], m['id'])), stats
+
+
+# Generation-agnostic families the table has no row for. Papers write "AWS
+# Trainium" or "Inferentia" with no number far more often than "Trainium2", and
+# without these the mention resolves to nothing. Specs stay null: an unnumbered
+# mention does not tell us which generation was used, and attributing it to the
+# earliest one would be a guess dressed as data.
+FAMILY_ENTRIES = {
+    'amazon-trainium': {
+        'display': 'AWS Trainium', 'manufacturer': 'amazon', 'subtype': 'npu-asic',
+        'segment': 'cloud', 'after': 'amazon-trainium1',
+        'aliases': ['AWS Trainium', {'pattern': 'Trainium', 'gate': 'gpu'},
+                    {'pattern': 'Trn1', 'gate': 'gpu'}],
+    },
+    'amazon-inferentia': {
+        'display': 'AWS Inferentia', 'manufacturer': 'amazon', 'subtype': 'npu-asic',
+        'segment': 'cloud', 'after': 'amazon-aws-inferentia2',
+        'aliases': ['AWS Inferentia', {'pattern': 'Inferentia', 'gate': 'gpu'},
+                    {'pattern': 'Inf[12]', 'gate': 'gpu'}],
+    },
+}
+
+
+def add_families(entries: dict) -> None:
+    """Attach family entries, dated from the earliest member present."""
+    for mid, spec in FAMILY_ENTRIES.items():
+        members = [e for e in entries.values() if e['id'].startswith(spec['after'][:-1])]
+        if not members or mid in entries:
+            continue
+        spec = dict(spec)
+        spec.pop('after')
+        entries[mid] = {
+            'id': mid, **spec, 'architecture': None,
+            'release': min(m['release'] for m in members),
+            'release_source': SOURCE_URL,
+            'fp32_gflops': None, 'fp64_gflops': None, 'fp16_tensor_gflops': None,
+            'vram_gb': None, 'tdp_w': None, 'spec_source': None, 'notes': None,
+        }
 
 
 def main() -> None:

@@ -53,6 +53,8 @@ SOURCES = {
     'amd': ('amd', 'https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units'),
     'tpu': ('google', 'https://en.wikipedia.org/wiki/Tensor_Processing_Unit'),
     'apple': ('apple', 'https://en.wikipedia.org/wiki/Apple_silicon'),
+    'xeon_phi': ('intel', 'https://en.wikipedia.org/wiki/Xeon_Phi'),
+    'intel_arc': ('intel', 'https://en.wikipedia.org/wiki/Intel_Arc'),
 }
 
 SKIP_HEADING = re.compile(
@@ -64,7 +66,7 @@ SKIP_MODEL = re.compile(r'\b(Mobile|Laptop|Max-?Q|Embedded|Deskside)\b', re.IGNO
 MONTHS = ('Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?'
           '|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?')
 DATE_FULL = re.compile(rf'({MONTHS})\.?\s+\d{{1,2}},?\s+(\d{{4}})')
-DATE_MONTH = re.compile(rf'({MONTHS})\.?\s+(\d{{4}})')
+DATE_MONTH = re.compile(rf'({MONTHS})\.?,?\s+(\d{{4}})')
 DATE_QUARTER = re.compile(r'Q([1-4])[\s,]*(\d{4})')
 DATE_YEAR = re.compile(r'\b(19|20)\d{2}\b')
 MONTH_NUM = {m: i + 1 for i, m in enumerate(
@@ -463,6 +465,194 @@ def parse_tpu_page(html: str, url: str, entries: dict) -> None:
         }
 
 
+XEON_PHI_NAME = re.compile(r'^Xeon\s+Phi\s+([0-9][0-9A-Za-z]{2,5})$')
+# trailing 'M' is a mobile-workstation part (A30M, A60M): out of scope
+ARC_CODE = re.compile(r'^([AB]\d{2,3}[A-LN-Za-z]?)$')
+ARC_HEADINGS = ('desktop', 'workstation')          # per the user: not Mobile
+# Family-level entries: most papers write "Intel Xeon Phi" or "Intel Arc" with no
+# model number, so a per-model-only registry would drop them. Specs stay null --
+# the family's top configuration is not what an unnamed mention reports.
+FAMILY_ENTRIES = {
+    'intel-xeon-phi': {
+        'display': 'Intel Xeon Phi', 'manufacturer': 'intel', 'family': 'xeon-phi',
+        'architecture': 'mic', 'subtype': 'manycore', 'segment': 'datacenter',
+        'aliases': ['Xeon Phi', 'Knights Corner', 'Knights Landing', 'Knights Mill',
+                    {'pattern': 'KNL', 'gate': 'gpu'}],
+    },
+    'intel-arc': {
+        'display': 'Intel Arc', 'manufacturer': 'intel', 'family': 'arc',
+        'architecture': 'xe', 'subtype': 'consumer-gpu', 'segment': 'consumer',
+        # bare 'Arc' is arc length, electric arc, arc minutes: vendor-qualified only
+        'aliases': ['Intel Arc'],
+    },
+}
+
+
+def bare_code_alias(code: str, entries: dict) -> list:
+    """Gated bare-code alias, unless another vendor already claims that code.
+
+    Intel's Arc Pro A40 and NVIDIA's A40 are different GPUs with the same short
+    code, and the NVIDIA part carries ~2,600 papers. Two entries claiming one
+    span makes `canonicalize_one`'s tie-break arbitrary, so the newer, rarer
+    claimant gets no bare alias and stays reachable as 'Arc Pro A40'.
+    """
+    for e in entries.values():
+        for a in e.get('aliases', []):
+            if (a if isinstance(a, str) else a['pattern']) == re.escape(code):
+                return []
+    return [{'pattern': re.escape(code), 'gate': 'gpu'}]
+
+
+def _family_entry(mid: str, release: str, url: str) -> dict:
+    return {'id': mid, **FAMILY_ENTRIES[mid], 'release': release,
+            'release_source': url, 'kind': 'model',
+            **{f: None for f in SPEC_FIELDS}, 'spec_source': None}
+
+
+def parse_xeon_phi_page(html: str, url: str, entries: dict, stats: dict) -> None:
+    """Xeon Phi coprocessors and many-core processors from the Models tables.
+
+    The Knights Corner table reports `Peak DP compute (GFLOPS)` directly, which is
+    the only FLOPS figure Intel published for these parts: they have no FP32 or
+    tensor number, so those axes stay null rather than being back-computed.
+    On-package memory (GDDR5 or MCDRAM) is the device memory.
+    """
+    for table, heading, section in iter_tables(html):
+        try:
+            df = pd.read_html(io.StringIO(str(table)))[0]
+        except ValueError:
+            stats['unparseable_tables'] += 1
+            continue
+        cols = flatten_columns(df)
+        i_name = 0
+        i_dp = find_col(cols, 'peak dp compute')
+        i_mem = find_col(cols, 'mcdram memory quantity', 'gddr5 ecc memory quantity')
+        i_tdp = find_col(cols, 'tdp')
+        i_rel = find_col(cols, 'released', 'release date')
+        if i_dp is None or i_rel is None:
+            stats['skipped_tables'] += 1
+            continue
+        for row in df.itertuples(index=False):
+            cells = list(row)
+            name = ' '.join(FOOTNOTE.sub(' ', str(cells[i_name])).split())
+            m = XEON_PHI_NAME.match(name)
+            if not m:
+                stats['skipped_models'] += 1
+                continue
+            release = parse_release(str(cells[i_rel]))
+            if release is None:
+                stats['no_date'] += 1
+                continue
+            stats['rows'] += 1
+            code = m.group(1)
+            mid = f'intel-xeon-phi-{code.lower()}'
+            specs = {
+                'fp64_gflops': parse_spec_value(cells[i_dp], 1.0),
+                'vram_gb': parse_spec_value(cells[i_mem], 1.0) if i_mem is not None else None,
+                'tdp_w': parse_spec_value(cells[i_tdp], 1.0) if i_tdp is not None else None,
+            }
+            prev = entries.get(mid)
+            if prev is None:
+                entries[mid] = {
+                    'id': mid, 'display': f'Intel Xeon Phi {code}',
+                    'manufacturer': 'intel', 'family': 'xeon-phi',
+                    'architecture': 'mic', 'subtype': 'manycore',
+                    'segment': 'datacenter', 'release': release,
+                    'release_source': url,
+                    'fp32_gflops': None, 'fp16_tensor_gflops': None, **specs,
+                    'spec_source': f'{url}#{heading or section}',
+                    # '7120P' is distinctive but numeric; gate it like other bare codes
+                    'aliases': [f'Xeon Phi {code}',
+                                *bare_code_alias(code, entries)],
+                }
+            else:
+                prev['release'] = min(prev['release'], release)
+                for f, v in specs.items():
+                    if v is not None:
+                        prev[f] = v if prev[f] is None else max(prev[f], v)
+        fam = [e for e in entries.values() if e.get('family') == 'xeon-phi']
+        if fam and 'intel-xeon-phi' not in entries:
+            entries['intel-xeon-phi'] = _family_entry(
+                'intel-xeon-phi', min(e['release'] for e in fam), url)
+
+
+def parse_intel_arc_page(html: str, url: str, entries: dict, stats: dict) -> None:
+    """Intel Arc desktop and workstation cards.
+
+    Only the XMX matrix-engine column may feed the tensor axis; the plain
+    'Half precision' column is vector FP16 and would inflate it, the same
+    conflation the data-center-table bug produced for NVIDIA.
+    """
+    for table, heading, section in iter_tables(html):
+        if not any(h in f'{heading} {section}'.lower() for h in ARC_HEADINGS):
+            stats['skipped_tables'] += 1
+            continue
+        try:
+            df = pd.read_html(io.StringIO(str(table)))[0]
+        except ValueError:
+            stats['unparseable_tables'] += 1
+            continue
+        cols = flatten_columns(df)
+        i_brand, i_code = 0, 1
+        i_rel = find_col(cols, 'launch')
+        i_fp32 = find_col(cols, 'single precision')
+        i_fp64 = find_col(cols, 'double precision')
+        i_xmx = find_col(cols, 'xmx half precision')
+        i_mem = find_col(cols, 'memory size')
+        i_tdp = find_col(cols, 'tdp')
+        if i_rel is None or i_fp32 is None:
+            stats['skipped_tables'] += 1
+            continue
+        for row in df.itertuples(index=False):
+            cells = list(row)
+            code = ' '.join(FOOTNOTE.sub(' ', str(cells[i_code])).split())
+            code = clean_model_name(code)            # 'A770 16GB' -> 'A770'
+            if not ARC_CODE.match(code):
+                stats['skipped_models'] += 1
+                continue
+            release = parse_release(str(cells[i_rel]))
+            if release is None:
+                stats['no_date'] += 1
+                continue
+            stats['rows'] += 1
+            pro = 'pro' in str(cells[i_brand]).lower()
+            line = 'Arc Pro' if pro else 'Arc'
+            mid = f'intel-arc-{"pro-" if pro else ""}{code.lower()}'
+            specs = {
+                'fp32_gflops': parse_spec_value(cells[i_fp32], 1000.0),
+                'fp64_gflops': parse_spec_value(cells[i_fp64], 1000.0) if i_fp64 is not None else None,
+                'fp16_tensor_gflops': parse_spec_value(cells[i_xmx], 1000.0) if i_xmx is not None else None,
+                'vram_gb': parse_spec_value(cells[i_mem], 1.0) if i_mem is not None else None,
+                'tdp_w': parse_spec_value(cells[i_tdp], 1.0) if i_tdp is not None else None,
+            }
+            prev = entries.get(mid)
+            if prev is None:
+                entries[mid] = {
+                    'id': mid, 'display': f'Intel {line} {code}',
+                    'manufacturer': 'intel', 'family': 'arc',
+                    'architecture': 'xe', 'subtype': 'workstation-gpu' if pro
+                    else 'consumer-gpu',
+                    'segment': 'workstation' if pro else 'consumer',
+                    'release': release, 'release_source': url, **specs,
+                    'spec_source': f'{url}#{heading or section}',
+                    # 'Intel Arc A770' must be listed explicitly: the family
+                    # alias 'Intel Arc' is the longer span against a bare
+                    # 'Arc A770', and longest-span resolution would hand the
+                    # mention to the family entry.
+                    'aliases': [f'Intel {line} {code}', f'{line} {code}',
+                                *bare_code_alias(code, entries)],
+                }
+            else:
+                prev['release'] = min(prev['release'], release)
+                for f, v in specs.items():
+                    if v is not None:
+                        prev[f] = v if prev[f] is None else max(prev[f], v)
+        fam = [e for e in entries.values() if e.get('family') == 'arc']
+        if fam and 'intel-arc' not in entries:
+            entries['intel-arc'] = _family_entry(
+                'intel-arc', min(e['release'] for e in fam), url)
+
+
 APPLE_HEADING = 'comparisonofm-seriesprocessors'
 APPLE_NAME = re.compile(r'^M(\d+)(?:\s+(Pro|Max|Ultra))?$')
 
@@ -576,6 +766,10 @@ def main() -> None:
             parse_tpu_page(html, url, entries)
         elif name == 'apple':
             parse_apple_page(html, url, entries, stats)
+        elif name == 'xeon_phi':
+            parse_xeon_phi_page(html, url, entries, stats)
+        elif name == 'intel_arc':
+            parse_intel_arc_page(html, url, entries, stats)
         else:
             parse_gpu_page(html, manufacturer, url, entries, stats)
 

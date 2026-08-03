@@ -2,10 +2,21 @@
 #
 # Model entries are GENERATED from Wikipedia/vendor sources by
 # accelscan/scripts/build_registry.py into registry/generated/*.yaml.
-# This file holds what can't be scraped: context-term gate vocabularies,
-# generic/vendor/architecture entries, and hand overrides. The loader
-# (accelscan/registry.py) merges this file with registry/generated/*.yaml;
-# an entry here with the same id as a generated one replaces it.
+# This file holds ONLY what no machine-readable source can give: the
+# context-term gate vocabularies, the generic terms, the vendor brand triggers
+# and the architecture words. Every specific model now comes from a generator --
+# registry/generated/wikipedia.yaml (NVIDIA, AMD, TPU, Apple M-series, Xeon Phi,
+# Intel Arc) and registry/generated/epoch.yaml (Epoch AI's ML-hardware table:
+# Chinese domestic silicon, first-party cloud parts, export-control SKUs, Gaudi,
+# Ascend, Trainium, Inferentia). The loader merges this file with
+# registry/generated/*.yaml; an entry here with the same id overrides a
+# generated one, which is the escape hatch if a scrape ever goes wrong.
+#
+# Two models were dropped rather than migrated (v0.3.0, Gebhart): Jetson, as
+# embedded modules are out of scope, and Cerebras/Graphcore, which no source we
+# parse carries. Their mentions no longer resolve to a model, so they leave the
+# model-level series; the LLM still records their manufacturer, so they remain
+# visible in any-mention vendor counts.
 #
 # Pattern conventions (enforced/expanded by accelscan/registry.py):
 #   - Literal spaces in patterns compile to [\s-]* ('RTX 3090' matches
@@ -142,54 +153,3 @@ models:
   - {id: arch-cdna, display: "AMD CDNA architecture", manufacturer: amd,
      subtype: datacenter-gpu, kind: architecture, release: 2020-11,
      aliases: [{pattern: "CDNA[1-4]?", gate: gpu}]}
-
-  # ------------------------------------------------------------------
-  # Long-tail accelerators in NO machine-readable source we have.
-  #
-  # Everything that a source does cover has been migrated out of this file:
-  #   - Apple M-series -> registry/generated/wikipedia.yaml, per variant
-  #     (M1/M1 Pro/M1 Max/M1 Ultra ... M5 Max) from the "Comparison of M-series
-  #     processors" table, with GPU FP32 and max unified memory.
-  #   - Gaudi 1/2/3, Ascend 310/910, Intel Data Center GPU Max -> generated/
-  #     epoch.yaml from Epoch AI's ML-hardware table, which supplies the specs
-  #     the hand entries never had.
-  #
-  # What remains is here because deleting it would delete the model outright.
-  # Checked against Epoch's 176 rows: none of the entries below appear in it.
-  #   - Xeon Phi: 550 papers, and the whole "Intel peaked at 7.8% in 2015"
-  #     result in the manufacturer section rests on it.
-  #   - Cerebras (3), Graphcore IPU: the only non-GPU challengers in the
-  #     concentration analysis.
-  #   - Arc A770, Inferentia v1, generation-agnostic "Trainium".
-  # Specs stay null for these: no source we trust publishes them per device.
-  #
-  # Jetson (TK1/TX1/TX2/Xavier/Nano/Orin) was dropped in v0.3.0: embedded
-  # inference modules are out of scope (Gebhart, 2026-08-03). Their mentions no
-  # longer resolve, so they leave every model-level series -- ~6,100 S2ORC papers
-  # of reported use, and Jetson Nano/Orin drop out of the top-20 paper-support
-  # figure. Restoring them means `git revert`, not retyping.
-  # ------------------------------------------------------------------
-  - {id: intel-xeon-phi, display: "Intel Xeon Phi", manufacturer: intel, family: xeon-phi,
-     architecture: mic, subtype: manycore, segment: datacenter, release: 2012-11,
-     aliases: ["Xeon Phi", "Knights Landing", "Knights Corner", {pattern: "KNL", gate: gpu}]}
-  - {id: intel-arc-a770, display: "Intel Arc A770", manufacturer: intel, family: arc,
-     architecture: xe, subtype: consumer-gpu, segment: consumer, release: 2022-10,
-     aliases: ["Arc A770", "Intel Arc"]}
-  - {id: cerebras-wse, display: "Cerebras WSE-1", manufacturer: cerebras, family: wse,
-     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2019-08,
-     aliases: ["Cerebras WSE", "WSE-1", {pattern: "CS-1", gate: gpu}, "wafer scale engine"]}
-  - {id: cerebras-wse2, display: "Cerebras WSE-2", manufacturer: cerebras, family: wse,
-     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2021-04,
-     aliases: ["WSE-2", {pattern: "CS-2", gate: gpu}]}
-  - {id: cerebras-wse3, display: "Cerebras WSE-3", manufacturer: cerebras, family: wse,
-     architecture: wse, subtype: npu-asic, segment: datacenter, release: 2024-03,
-     aliases: ["WSE-3", {pattern: "CS-3", gate: gpu}]}
-  - {id: graphcore-ipu, display: "Graphcore IPU", manufacturer: graphcore, family: ipu,
-     architecture: ipu, subtype: npu-asic, segment: datacenter, release: 2018-11,
-     aliases: ["Graphcore IPU", "Graphcore", {pattern: "IPU", gate: gpu}, "GC200", "Bow IPU"]}
-  - {id: aws-trainium, display: "AWS Trainium", manufacturer: amazon, family: trainium,
-     architecture: trainium, subtype: npu-asic, segment: cloud, release: 2022-10,
-     aliases: ["Trainium", {pattern: "Trn1", gate: gpu}]}
-  - {id: aws-inferentia, display: "AWS Inferentia", manufacturer: amazon, family: inferentia,
-     architecture: inferentia, subtype: npu-asic, segment: cloud, release: 2019-12,
-     aliases: ["Inferentia", {pattern: "Inf[12]", gate: gpu}]}

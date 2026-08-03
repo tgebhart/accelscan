@@ -640,6 +640,27 @@ models:
   - pattern: A800
     gate: gpu
   notes: null
+- id: amazon-trainium
+  display: AWS Trainium
+  manufacturer: amazon
+  subtype: npu-asic
+  segment: cloud
+  aliases:
+  - AWS Trainium
+  - pattern: Trainium
+    gate: gpu
+  - pattern: Trn1
+    gate: gpu
+  architecture: null
+  release: 2022-10
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
+  notes: null
 - id: amazon-trainium1
   display: Amazon Trainium1
   manufacturer: amazon
@@ -860,6 +881,27 @@ models:
   - AWS Inferentia2
   - Inferentia2
   - Inferentia 2
+  notes: null
+- id: amazon-inferentia
+  display: AWS Inferentia
+  manufacturer: amazon
+  subtype: npu-asic
+  segment: cloud
+  aliases:
+  - AWS Inferentia
+  - pattern: Inferentia
+    gate: gpu
+  - pattern: Inf[12]
+    gate: gpu
+  architecture: null
+  release: 2023-04
+  release_source: https://epoch.ai/data/machine-learning-hardware
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
   notes: null
 - id: meta-mtia-v1
   display: Meta MTIA v1

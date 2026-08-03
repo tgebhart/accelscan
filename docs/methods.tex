@@ -110,9 +110,11 @@ versioned; every output table is namespaced by the registry version that
 produced it). Model entries are \emph{generated}, not authored: a scraper
 (\texttt{scripts/build\_registry.py}) parses the specification tables of the
 Wikipedia lists of NVIDIA and AMD graphics processing units, the AMD Instinct
-page, the Tensor Processing Unit page, and the ``Comparison of M-series
-processors'' table of the Apple silicon page, collapsing per-variant rows (memory
-size, form factor, GPU-core bin, edition) into canonical models and merging duplicate entries
+page, the Tensor Processing Unit page, the ``Comparison of M-series processors''
+table of the Apple silicon page, the Xeon Phi coprocessor and many-core model
+tables, and the desktop and workstation tables of the Intel Arc page, collapsing
+per-variant rows (memory size, form factor, GPU-core bin, edition) into canonical
+models and merging duplicate entries
 across pages by taking the earliest launch date, the union of aliases, and the
 element-wise maximum of specifications. A second generator
 (\texttt{scripts/build\_epoch\_registry.py}) adds the accelerators those pages
@@ -133,31 +135,41 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- context-gate vocabularies, generic and architecture entries, and
 overrides, which replace generated entries by id.
 
-Registry v0.3.0 contains $1{,}208$ entries: $1{,}186$ specific models, 13
+Registry v0.3.0 contains $1{,}239$ entries: $1{,}217$ specific models, 13
 architectures (Fermi, Kepler, \ldots), and 9 generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
-reporting is measurable), spanning 24 manufacturers. The largest are NVIDIA 568,
-AMD 546, Apple 18, Google 11, and then a long tail of eight or fewer entries each
-(Huawei, Cambricon, Intel, Baidu, Amazon, Meta, Cerebras, Microsoft, MetaX,
-Iluvatar, Biren, Graphcore, \ldots). By market segment: consumer 922,
-workstation 130, datacenter 112, cloud 22. Embedded inference modules (the
-NVIDIA Jetson line) are out of scope and carry no registry entry, so a Jetson
-mention resolves only as an NVIDIA brand mention and never enters a model-level
-series.
+reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 568,
+AMD 546, Intel 43, Apple 18 and Google 11, then a long tail of eight or fewer
+entries each (Huawei, Cambricon, Baidu, Amazon, Meta, Microsoft, MetaX, Biren,
+Iluvatar, \ldots). By market segment: consumer 929, workstation 136,
+datacenter 130, cloud 22. Every specific model is generated; the hand-maintained
+file holds only the gate vocabularies, the generic terms, two vendor brand
+triggers and the architecture words, none of which any hardware table supplies.
+Two classes are deliberately descoped and carry no model entry: embedded
+inference modules (the NVIDIA Jetson line) and wafer-scale/IPU parts (Cerebras,
+Graphcore), for which no source we parse publishes per-device specifications.
+Their mentions are bucketed as out-of-scope in the unresolved audit rather than
+counted as registry gaps, and they never enter a model-level series.
 Apple silicon is carried per chip variant (M1, M1 Pro, M1 Max, M1 Ultra, \ldots,
 M5 Max) rather than per generation, because within a generation the variants
 differ by up to $8\times$ in GPU throughput and $16\times$ in addressable memory.
-Release dates span 2000--2026 and are populated for all $1{,}186$ models, since
+Release dates span 2000--2026 and are populated for all $1{,}217$ models, since
 the frontier-lag and half-life estimands depend on them. Per-device
-specification coverage across models is: memory $97.6\%$, FP32 $64.9\%$, FP64
-$45.3\%$, dense FP16 tensor throughput $7.8\%$ (defined only for post-Volta
-parts), TDP $69.8\%$. Missing specifications remain null and are excluded
+specification coverage across models is: memory $98.0\%$, FP32 $64.3\%$, FP64
+$45.9\%$, dense FP16 tensor throughput $7.8\%$ (defined only for post-Volta
+parts), TDP $70.9\%$. Where a family is named without a model number --- ``an
+Intel Xeon Phi'', ``AWS Trainium'' --- the registry carries a family entry whose
+specifications are null, since an unnumbered mention does not say which
+generation ran. Missing specifications remain null and are excluded
 per-axis rather than zero-filled.
 
 Following the FLOPS convention required for cross-generation comparability, we
 record \emph{dense, non-sparse} peak throughput at boost clock, per device:
-sparsity-doubled marketing figures are excluded, and TF32 tensor throughput is
-never recorded in the FP32 column.
+sparsity-doubled marketing figures are excluded, TF32 tensor throughput is never
+recorded in the FP32 column, and only a matrix-engine column may feed the tensor
+axis (Intel Arc's plain half-precision column is vector FP16 and is not read as
+tensor throughput). Xeon Phi parts report only the peak FP64 figure Intel
+published, so their FP32 and tensor axes are null rather than back-computed.
 
 The two corpora were scanned under adjacent registry versions --- S2ORC under
 v0.1.0 ($1{,}127$ entries, $1{,}838$ aliases; sources retrieved 2026-07-13) and

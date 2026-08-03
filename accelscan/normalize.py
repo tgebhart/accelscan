@@ -77,6 +77,12 @@ def _registry() -> CompiledRegistry:
 # nameplate figure would be meaningless). Classified here so the unresolved
 # bucket is *documented* rather than an unexplained measurement gap.
 OUT_OF_SCOPE = {
+    # Deliberately descoped in registry v0.3.0, so their strings must land in a
+    # named bucket rather than in `unknown`, where a scope decision would be
+    # indistinguishable from a registry gap: embedded modules, and the two
+    # wafer-scale/IPU vendors no source we parse publishes per-device specs for.
+    'embedded-module': re.compile(r'jetson|tegra|\borin\b|xavier', re.IGNORECASE),
+    'wafer-scale-ipu': re.compile(r'cerebras|graphcore|\bIPU\b|\bWSE-?\d?\b|\bCS-[123]\b'),
     'fpga-xilinx': re.compile(r'xilinx|virtex|artix|kintex|spartan|zynq|alveo|zcu|vc707|ultrascale',
                               re.IGNORECASE),
     'fpga-intel': re.compile(r'\b(arria|stratix|cyclone|agilex)\b', re.IGNORECASE),
