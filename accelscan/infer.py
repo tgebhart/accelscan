@@ -83,6 +83,26 @@ def sampling_params():
                                   json=EXTRACTION_JSON_SCHEMA))
 
 
+INT32_MAX = 2**31 - 1
+
+
+def _clamp(m: dict) -> dict:
+    """Clamp `device_count` into Int32.
+
+    The schema's `int` is unbounded but `MENTION_SCHEMA` stores Int32, so a
+    passage reading "5 x 10^12 operations" that the model transcribes as a device
+    count aborted a whole shard at frame construction -- after an hour of
+    inference, and only for the one shard containing it. Clamping keeps the value
+    obviously junk (it is orders of magnitude above `compute.HARD_DEVICE_CAP`, so
+    winsorization treats it exactly as before) without widening the column, which
+    would make this shard's parquet unreadable in the same scan as the others.
+    """
+    n = m.get('device_count')
+    if n is not None and not -INT32_MAX <= n <= INT32_MAX:
+        m['device_count'] = INT32_MAX if n > 0 else 0
+    return m
+
+
 def parse_output(text: str, truncated: bool) -> tuple[str, list[dict]]:
     if truncated:
         return 'truncated', []
@@ -92,7 +112,7 @@ def parse_output(text: str, truncated: bool) -> tuple[str, list[dict]]:
         return 'json_error', []
     if not ext.mentions:
         return 'no_mention', []
-    return 'ok', [m.model_dump() for m in ext.mentions]
+    return 'ok', [_clamp(m.model_dump()) for m in ext.mentions]
 
 
 def parse_shard_spec(spec: str) -> list[int]:
