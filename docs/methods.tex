@@ -1,0 +1,428 @@
+% Methods section for "Graphical Processing Units in Science".
+% Every quantity below is read from the pipeline's own output tables
+% (registry v0.2.0; extraction 2026-07/08). Regenerate with the notebooks in
+% notebooks/ and notebooks/arxiv/ if the pipeline is re-run.
+%
+% KNOWN INCOMPLETENESS (see \S3.5): S2ORC passage shards 6, 27 and 28 --
+% 75,000 of 877,101 candidate passages (8.6\%) -- have no mentions table, and
+% the missing passages are skewed toward recent publication years. All S2ORC
+% numerators below and in Figs. 3, 5, 7, 9, 11, 12, 14, 15 are therefore
+% computed on 91.4\% of candidate passages. Running
+% `python -m accelscan.infer --shards 6,27,28` and rebuilding stages 3.5--4
+% closes the gap and will change every S2ORC count.
+
+\subsection{Corpora}
+
+We measure reported accelerator use in two full-text corpora, processed by
+identical code and reported separately.
+
+\textbf{S2ORC.} We use the Semantic Scholar Open Research Corpus (S2ORC v2)
+full-text release, a 214-shard gzipped JSONL snapshot retrieved 2026-03-13.
+Each record carries a machine-extracted body together with character-offset
+annotations for paragraphs and section headers; the reference list is a
+separate top-level object, so bibliographies are excluded by construction. Paper
+metadata (publication year, fields of study, citation counts) comes from the
+matching Semantic Scholar metadata snapshot (2026-02-10). The corpus contains
+$12{,}408{,}584$ distinct papers with full text, of which $11{,}790{,}600$
+fall in the $2005$--$2025$ analysis window.
+
+\textbf{arXiv.} We additionally process the arXiv \emph{author-submitted
+\LaTeX{} source} bulk release (\texttt{s3://arxiv/src}), $12{,}830$
+requester-pays tar archives covering 1991--2026 and containing $3{,}091{,}651$
+submissions. Source is streamed rather than mirrored: archives are read
+forward-only in-region on EC2 (\texttt{us-east-1}), where S3-to-instance
+transfer is free, and only derived parquet is written back to institutional
+storage. Of all submissions, $249{,}638$ ($8.1\%$) are PDF-only and carry no
+source, $21{,}512$ contain no \TeX{} member, $4{,}358$ are PostScript,
+$2{,}131$ exceed the size ceiling, and $40$ are corrupt, non-gzip, or exceeded
+the per-paper time budget; submission shapes are classified by magic bytes
+rather than file extension. $2{,}813{,}972$ submissions ($91.0\%$) yield at
+least one usable paragraph. The resulting population is $2{,}830{,}540$ papers,
+$2{,}541{,}291$ of them in the $2005$--$2026$ window. arXiv adds text fidelity
+(author \LaTeX{} rather than PDF extraction), coverage of the current month,
+and arXiv's own category taxonomy; it is a self-selected preprint corpus skewed
+toward physics, mathematics and computer science, so we compare
+\emph{within-corpus trends} only, never cross-corpus levels.
+
+Identity is unified by a corpus-namespaced key \texttt{paper\_id} --- the
+Semantic Scholar \texttt{corpusid} for S2ORC, \texttt{arxiv:2301.01234} for
+arXiv --- and a passage key \texttt{paper\_id:para\_idx}. arXiv
+publication year is recovered from the identifier itself (every arXiv id
+encodes \texttt{YYMM}, with $\mathrm{YY}\ge 91$ denoting the 1900s), which
+agrees with the v1 submission date recorded in arXiv's own metadata snapshot
+for $99.71\%$ of its $3{,}113{,}330$ records.
+
+\subsection{Paragraph segmentation}
+
+Both corpora are reduced to the same unit --- an ordered list of paragraphs, each
+with the nearest preceding section heading --- so that all matching, gating and
+passage assembly downstream is performed by one shared implementation.
+Paragraphs shorter than 30 characters are dropped, and paragraph indices are
+assigned before that filter so that \texttt{passage\_id} means the same thing in
+both corpora.
+
+For S2ORC we use the supplied paragraph and section-header offsets, falling back
+to blank-line splitting for the minority of records with null annotations.
+
+For arXiv we search the \LaTeX{} source \emph{as written}, without de-\TeX{}ing.
+Hardware names are ASCII literals that appear verbatim in source, and two
+parsing implementations (a hand-rolled converter and \texttt{pylatexenc}) were
+evaluated and rejected: their measured benefit over raw search was confined to
+\emph{exclusions}, while the risk --- non-termination on the routinely malformed
+markup of a 2.6M-paper corpus, and era-correlated conversion failure that would
+manufacture the very time trend we measure --- was not acceptable. All text
+members of a submission are concatenated (longest first) rather than resolving
+\verb|\input|, which is both simpler and higher-recall, since arXiv submissions
+are typically multi-file and the methods section is often its own file. The
+preamble is removed per file at \verb|\begin{document}|
+($99.1\%$ of papers), paragraphs are split on blank lines (\TeX{}'s own rule)
+with over-long paragraphs re-split at sentence boundaries to fit the passage
+budget, section headings are captured from
+\verb|\chapter|/\verb|\section|/\verb|\subsection|/\verb|\paragraph|, and
+purely numeric inline math is unwrapped so that ``\verb|$8$ V100s|'' retains its
+device count. Decoding falls back utf-8 $\rightarrow$ cp1252 $\rightarrow$
+latin-1 ($93.9\%$, $5.8\%$, $0.3\%$ of papers respectively). Papers have a
+median of 77 paragraphs.
+
+Bibliographies are excluded in three layers: \texttt{.bbl} members are never
+read; the document is truncated at the first
+\verb|\begin{thebibliography}|, \verb|\bibliography{|, or
+\verb|\printbibliography| occurring past the halfway point of the document (so
+that a preamble \verb|\bibliographystyle| cannot decapitate a paper); and a
+final filter discards reference-shaped paragraphs (numbered or \verb|\bibitem|
+openers, or short paragraphs carrying two or more bibliographic signals). This
+matters quantitatively: reference titles routinely contain ``GPU-accelerated
+\ldots'', and $91.9\%$ of arXiv papers reach the truncation rule, with
+$5{,}186{,}759$ reference-shaped paragraphs additionally filtered.
+
+The accepted cost of raw-source search is that figure captions, spec tables,
+code listings and commented-out text (\verb|% we used to use a K80|) are
+searched. The bias is upward, known in sign, and concentrated in the
+any-mention series; the usage-context stage (\S\,``Mention versus reported use'') is the primary defence,
+since a caption or a related-work sentence is labelled as not
+\emph{used-in-this-work}. This makes arXiv any-mention prevalence biased upward
+relative to S2ORC, which obtains these exclusions free from PDF extraction.
+
+\subsection{Hardware registry}
+
+Matching is driven by a versioned registry (\texttt{registry/}, semantically
+versioned; every output table is namespaced by the registry version that
+produced it). Model entries are \emph{generated}, not authored: a scraper
+(\texttt{scripts/build\_registry.py}) parses the specification tables of the
+Wikipedia lists of NVIDIA and AMD graphics processing units, the AMD Instinct
+page, and the Tensor Processing Unit page, collapsing per-variant rows (memory
+size, form factor, edition) into canonical models and merging duplicate entries
+across pages by taking the earliest launch date, the union of aliases, and the
+element-wise maximum of specifications. Only rows with a parseable launch date
+$\ge 2000$ are kept; mobile, integrated, console and chipset sections are
+skipped. No specification number is ever taken from model memory: each entry
+records a \texttt{spec\_source} naming the source page and table heading.
+Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
+scraped --- context-gate vocabularies, generic and architecture entries, and
+overrides, which replace generated entries by id.
+
+Registry v0.2.0 contains $1{,}139$ entries: $1{,}117$ specific models, 13
+architectures (Fermi, Kepler, \ldots), and 9 generic terms (\texttt{GPU},
+\texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
+reporting is measurable). By manufacturer: NVIDIA 562, AMD 544, Google 10,
+Intel 6, Apple 4, Cerebras 3, Huawei 2, Amazon 2, Graphcore 1. By market
+segment: consumer 908, workstation 130, datacenter 62, cloud 11, embedded 6.
+Release dates span 2000--2026 and are populated for all $1{,}117$ models, since
+the frontier-lag and half-life estimands depend on them. Per-device
+specification coverage across models is: memory $97.5\%$, FP32 $63.5\%$, FP64
+$46.6\%$, dense FP16 tensor throughput $5.8\%$ (defined only for post-Volta
+parts), TDP $68.9\%$. Missing specifications remain null and are excluded
+per-axis rather than zero-filled.
+
+Following the FLOPS convention required for cross-generation comparability, we
+record \emph{dense, non-sparse} peak throughput at boost clock, per device:
+sparsity-doubled marketing figures are excluded, and TF32 tensor throughput is
+never recorded in the FP32 column.
+
+The two corpora were scanned under adjacent registry versions --- S2ORC under
+v0.1.0 ($1{,}127$ entries, $1{,}838$ aliases; sources retrieved 2026-07-13) and
+arXiv under v0.2.0 ($1{,}139$ entries, $1{,}862$ aliases; retrieved
+2026-07-28). The bump added per-device specifications to existing entries and 12
+new models, removing none, so the matching surface is all but identical across
+corpora. Both capacity tables use v0.2.0 specifications; because specification
+additions do not change matching, they require re-running only stages 3.5 and
+later, never the scan or the LLM.
+
+\subsection{Candidate passage generation}
+
+Stage 1 is a single CPU pass over each corpus emitting two products: an
+\emph{inventory} row per paper (the population), and a \emph{candidate} row per
+matched paragraph.
+
+Matching is three-layered. (i) An Aho--Corasick automaton over the lowercase
+literal cores of all $1{,}862$ aliases prefilters paragraphs; a hit must fall on
+word boundaries in the haystack. The overwhelming majority of paragraphs stop
+here, which is what makes a full-corpus sweep affordable. (ii) For each
+surviving core, a confirming per-alias regular expression is applied, wrapped in
+hardware-safe boundaries \verb|(?<!\w)(?:...)s?(?!\w)| so that \texttt{V100}
+does not match \texttt{CV100x} or \texttt{V1000}; literal spaces compile to
+\verb|[\s-]*| so \texttt{RTX 3090}, \texttt{RTX-3090} and \texttt{RTX3090} are
+one alias. Case sensitivity is derived from the pattern: all-uppercase aliases
+(\texttt{GPU}, \texttt{V100}, \texttt{K80}) match case-sensitively,
+mixed-case ones (\texttt{Tesla V100}) case-insensitively. Overlapping matches
+are resolved by longest span, so \texttt{RTX 3090 Ti} beats \texttt{RTX 3090}
+without hand-authored lookaheads. (iii) Ambiguous aliases --- short codes whose
+strings collide with non-hardware usage (\texttt{K80} the antibody, \texttt{M2}
+the money supply, architecture names that are ordinary words) --- are marked
+tier~B ($236$ of $1{,}862$ aliases) and count only if a context term from the
+relevant gate vocabulary (\texttt{gpu}: 21 terms; \texttt{tpu}: 5;
+\texttt{apple}: 8) occurs within $\pm 250$ characters of the match, taken over
+the paragraph and its immediate neighbours. A paper-level rescue then un-gates
+tier~B matches in papers carrying at least one ungated model hit anywhere.
+Gating errs permissive by design: it exists to bound candidate volume, not to be
+precise, because precision is the LLM's job.
+
+Each matched paragraph yields one candidate passage: the paragraph plus its
+immediate neighbours, capped at $2{,}500$ characters ($\approx 600$ tokens). The
+window is centred on the matched span rather than taken from the head of the
+paragraph, so that the trigger is always inside the passage it triggered; every
+recorded match offset is verified to index the stored passage text. Passages per
+paper are capped at 20 for papers with at least one model-specific hit and 5 for
+generic-only papers (\texttt{GPU}/\texttt{CUDA} with no model named), with a
+\texttt{passages\_truncated} flag preserving auditability; generic-only papers
+are retained rather than discarded because device counts and usage context are
+measurable without a model name. Auxiliary device-count and memory expressions
+adjacent to a hit are recorded as \texttt{matched\_surfaces} and passed to the
+LLM as hints, but never trigger a passage on their own.
+
+Stage 1 yields $877{,}101$ candidate passages from $399{,}857$ S2ORC papers and
+$863{,}815$ from $312{,}480$ arXiv papers. These are repacked into fixed-size
+shards of $25{,}000$ passages (36 and 35 shards respectively) so that GPU tasks
+have uniform runtimes.
+
+\subsection{LLM extraction and validation}
+
+Stage 2 submits every candidate passage to a locally hosted open-weight model,
+which decides whether each registry hit is genuinely an accelerator mention and,
+if so, labels it. We use \textbf{Qwen3-14B} in bfloat16 served by vLLM's offline
+batch interface, with a $4{,}096$-token context, at most $1{,}024$ output
+tokens, greedy decoding ($\text{temperature}=0$), reasoning/``thinking'' mode
+disabled, and prefix caching enabled (the system prompt is shared across all
+passages in a batch).
+
+Output is constrained by \textbf{guided JSON decoding} against a schema compiled
+from a Pydantic model, so the model cannot emit unparseable output or
+out-of-vocabulary labels. Each mention object carries: \texttt{model\_raw}
+(verbatim surface form), \texttt{model\_normalized} (canonical marketing name,
+or null when only a generic term appears), \texttt{manufacturer} (11-way enum),
+\texttt{accelerator\_subtype} (11-way enum spanning datacenter/consumer/
+workstation/mobile GPU, TPU, FPGA, NPU-ASIC, manycore, the two generic classes,
+and \texttt{not-an-accelerator}), \texttt{device\_count} with
+\texttt{device\_count\_basis} $\in$ \{explicit, inferred\}, \texttt{memory\_gb}
+(per-device, when stated), \texttt{usage\_context} (below), and
+\texttt{evidence\_quote}, a short verbatim span supporting the labels that
+permits post-hoc hallucination auditing. The passage-level object is a list of
+mentions, so an empty list is the model's explicit way of rejecting a registry
+false positive; \texttt{not-an-accelerator} is the second off-ramp.
+
+The prompt is a fixed system message (task definition, per-field rules,
+definitions of the four usage contexts, and four worked examples --- a
+multi-GPU methods sentence, a passage mixing related-work TPUs with a
+used-in-this-work consumer GPU, an architecture studied as an object with a card
+used for validation, and the ``K80 cells were incubated with the antibody''
+negative) followed by a per-passage user message containing the section header,
+the registry hint surfaces, and the passage text. Prompt text is versioned
+(\texttt{PROMPT\_VERSION}) and stamped, with the registry version, model name
+and code commit, into every output row; output tables are namespaced by
+(registry version, prompt version, model), so variants can never be silently
+mixed.
+
+Exactly one row is written per passage even when nothing is extracted, with
+\texttt{status} $\in$ \{\texttt{ok}, \texttt{no\_mention}, \texttt{truncated},
+\texttt{json\_error}\}, and the raw generation is retained so that reprocessing
+never requires re-inference. Structured decoding is highly reliable in practice:
+of $1{,}010{,}417$ S2ORC output rows, $955{,}182$ ($94.5\%$) are \texttt{ok},
+$55{,}141$ ($5.5\%$) report no accelerator mention (i.e., an explicitly rejected
+registry candidate), 92 hit the output-token limit and 2 failed to parse; the
+arXiv figures are $972{,}174$ ($90.8\%$), $97{,}608$ ($9.1\%$), 495 and 143 of
+$1{,}070{,}420$ rows. The higher arXiv rejection rate is the expected
+consequence of searching raw source.
+
+Throughput is roughly one GPU-hour per $25{,}000$-passage shard
+($\approx 680$ output tokens/s), i.e.\ $\approx 35$ GPU-hours per corpus. Jobs
+run as SLURM arrays on a preemptible partition; the output shard is the unit of
+work and a zero-byte \texttt{.done} marker the unit of completion, so preemption
+costs at most one shard and reruns skip finished work.
+% NOTE: 33 of 36 S2ORC shards completed; see the header comment.
+
+\subsection{Normalization}
+
+Stage 3 resolves each distinct \texttt{model\_normalized} string to a canonical
+registry id by running the registry matcher over the string itself and keeping
+the longest match, breaking ties toward model over architecture over generic.
+Context gating is deliberately retained at this step, so that a bare
+``Fermi'' in a hardware context becomes the architecture while ``Fermi
+Gamma-ray Space Telescope'' does not become a GPU. Because canonicalization is
+a table join over distinct strings, adding registry entries requires re-running
+only this stage, never the LLM. \texttt{manufacturer} is taken directly from the
+model's enum output; the registry is used only for model identity.
+
+Strings that fail to canonicalize are classified rather than discarded, so that
+the extracted-but-unregistered share is explicit. Among used-in-this-work
+mentions naming a model, $94.9\%$ (S2ORC) and $97.0\%$ (arXiv) resolve to a
+registry entry. The largest unresolved buckets are deliberately out-of-scope
+accelerator families --- Xilinx FPGAs ($2.7\%$ / $1.3\%$ of named mentions),
+Intel FPGAs, and CPUs --- which are excluded because the study is GPU- and
+TPU-centric and a nameplate FLOPS figure for an FPGA is bitstream-dependent and
+therefore meaningless. Genuinely unknown strings are $1.4\%$ (S2ORC) and
+$1.0\%$ (arXiv).
+
+\subsection{Mention versus reported use}
+
+A textual mention does not establish that a paper used the device. Every mention
+is therefore assigned exactly one usage context: \emph{used-in-this-work} (the
+authors ran computations for this paper on it), \emph{comparison-or-related-work}
+(prior work, another paper's baseline, or a specification comparison the authors
+did not run), \emph{object-of-study} (the hardware is what the paper
+benchmarks, simulates, or designs against), or \emph{speculative-future}
+(announced or hypothetical hardware). Paper-level context is the
+highest-priority context across the paper's mentions.
+
+The distinction is quantitatively large and not a formality. Of $955{,}182$
+confirmed S2ORC mentions, $501{,}451$ ($52.5\%$) are used-in-this-work,
+$341{,}555$ ($35.8\%$) comparison-or-related-work, $93{,}878$ ($9.8\%$)
+object-of-study, and $18{,}298$ ($1.9\%$) speculative; the arXiv shares are
+$54.1\%$, $35.8\%$, $8.7\%$ and $1.5\%$ of $972{,}174$ mentions. Treating any
+mention as use would inflate the mention count by $1.9\times$ and the count of
+accelerator papers by $1.3\times$ ($339{,}601$ versus $258{,}312$ in S2ORC), and
+the two series diverge over time. All primary analyses condition on
+used-in-this-work; mention-imputed variants are reported as robustness. The
+usage-context stage also absorbs much of the raw-source bias described above: it is what allows a corpus in which captions and comments are searched
+to yield a defensible \emph{use} series.
+
+We further distinguish \emph{model-specific} from \emph{generic-only} reporting.
+A paper reporting use but naming no model carries no vendor, vintage, or
+capacity information, and the generic-only share falls sharply over the study
+period; it is therefore plotted before any composition or share figure, since a
+falling unknown share can mechanically inflate apparent vendor growth.
+
+\subsection{Reported compute capacity}
+
+Stage 3.5 joins per-device registry specifications to canonicalized
+used-in-this-work mentions. For paper $i$ and used model $g$ with device count
+$\hat c_{ig}$,
+\begin{align}
+F_i^{(p)} &= \sum_{g \in \mathrm{used}(i)} \hat c_{ig}\,\mathrm{flops}_p(g),
+  \qquad p \in \{\text{FP32}, \text{FP64}, \text{FP16 tensor}\},\\
+M_i &= \sum_{g} \hat c_{ig}\,\mathrm{vram}(g), \qquad
+W_i = \sum_{g} \hat c_{ig}\,\mathrm{tdp}(g),
+\end{align}
+with $C_i = \max_g \hat c_{ig}$ the scale-out measure. Mentions are first
+deduplicated to one row per (paper, model) taking the maximum reported device
+count, so a model repeated across passages is not double-counted. A per-device
+memory figure stated in text resolves configuration variants (e.g.\ A100 40 vs.\
+80\,GB) in preference to the registry default; stated memory is available for
+$11.2\%$ (S2ORC) and $12.5\%$ (arXiv) of confirmed mentions, which also supplies
+a validation subset for the specification-imputed series.
+
+\textbf{Interpretation.} These are \emph{reported nameplate peak} quantities,
+not utilized FLOPs: they measure the capacity a paper had access to and chose to
+report, an upper bound on work performed. Every capacity figure carries this
+caveat.
+
+\textbf{Device counts.} \texttt{device\_count} is stated for $42.9\%$ (S2ORC)
+and $46.0\%$ (arXiv) of confirmed mentions, of which $358{,}620$ and $387{,}189$
+respectively are explicit rather than inferred. Extraction junk reaches
+implausible magnitudes (the raw maxima are $1.5\times 10^8$ and $3\times 10^8$),
+so counts are winsorized at the within-year $99.9$th percentile and a hard
+ceiling of $65{,}536$ devices. Under the primary \texttt{floor1} policy an
+unstated count is imputed as one device, which makes $F_i$ and $M_i$ floors;
+an \texttt{explicit}-only variant that drops unstated counts is reported as
+robustness. After winsorization the per-paper maximum device count has median 1,
+90th percentile 8, and 99th percentile 64 (S2ORC) / 128 (arXiv).
+
+\textbf{Specification coverage.} A paper receives a null on an axis, plus a
+\texttt{spec\_missing} flag, when no used model has a specification on that axis;
+values are never zero-filled and such papers are excluded from that axis only.
+Capacity is computed for $218{,}915$ S2ORC and $201{,}674$ arXiv papers, with
+axis coverage FP32 $81.4\%$ / $82.3\%$, FP64 $81.0\%$ / $82.2\%$, FP16 tensor
+$57.2\%$ / $64.0\%$, and memory $86.4\%$ / $87.5\%$. Coverage is published by
+year alongside every capacity figure, because a coverage trend would otherwise
+be indistinguishable from a capacity trend. Tensor capability is treated as a
+registry-derived capability flag (a model has a dense tensor throughput figure
+or it does not) rather than an inferred property of the text.
+
+\subsection{Denominators and population}
+
+Two denominators are used, and they answer different questions. \emph{Diffusion}
+shares are taken over all full-text papers in a field-year --- the inventory
+table, which by construction contains papers with no accelerator mention at all.
+\emph{Composition} shares (vendor mix, model mix, vintage) are taken over
+accelerator-using papers in a field-year. Since corpus size grows by an order of
+magnitude over the study period, no count-based series is interpreted without
+the corresponding denominator figure.
+
+Publication year for S2ORC comes from the Semantic Scholar metadata snapshot and
+for arXiv from the identifier. Field for S2ORC is the first entry of
+\texttt{s2fieldsofstudy} ($89.6\%$ of in-window papers have a field label; the
+remainder are plotted as a separate ``no field label'' stratum rather than
+dropped). Field for arXiv is the archive-level group of the paper's primary
+category, from a scraped, versioned copy of arXiv's own taxonomy (8 groups, 155
+categories, 18 legacy archive renames), giving $100\%$ coverage; the
+fine-grained \texttt{primary\_category} is carried alongside for breakdowns that
+have no S2ORC analogue. A test fails if any archive, current or legacy, is
+unmapped, since an unmapped archive would silently drop papers out of every
+field figure.
+
+The analysis window is $2005$--$2025$ for S2ORC and $2005$--$2026$ for arXiv.
+The asymmetry is substantive, not cosmetic: arXiv has no ingestion lag --- a
+paper is in the source tars the month it is submitted --- whereas S2ORC's 2026
+holds under a tenth of a normal year's papers and would be a pure artefact.
+arXiv 2026 is nonetheless a partial calendar year, and is marked as such on
+count-based figures; shares are unaffected while numerator and denominator come
+from the same partial year.
+
+Citation outcomes are attached only to S2ORC, from a precomputed
+outcomes table keyed on Semantic Scholar identifiers, supplying cumulative
+citations $k$ years post-publication ($i_k$) and the CD disruption index
+($cd_k$). Papers published after the last year with a complete window are
+flagged rather than dropped. The arXiv pipeline deliberately maps no arXiv
+identifier onto Semantic Scholar, so the arXiv corpus carries no citation
+analyses at all.
+
+\subsection{Validity checks and reproducibility}
+
+\textbf{Shared-core regression.} The property that makes the two corpora
+comparable at all --- that they are measured by the same code --- is enforced by
+tests, not by convention: the same prose fed through an S2ORC record and through
+the \LaTeX{} reader must yield identical matched models, candidate counts, and
+match offsets that index the stored passage text.
+
+\textbf{Pre-release mentions.} A paper cannot legitimately use a chip released
+after it was published, so the pre-release rate is a direct measurement-validity
+probe. It is $0.056\%$ of $271{,}380$ S2ORC used-model observations and
+$0.027\%$ of $305{,}646$ arXiv observations. Identified causes are metadata
+year errors (S2ORC), preprint/version date mismatches, and a small number of
+registry release dates off by a year. These observations are flagged, not
+silently dropped, and are excluded when reading adoption lags.
+
+\textbf{Converter drift.} Conversion success, encoding, and bibliography
+truncation rates are recorded per paper and plotted by year, because a text
+pipeline that degrades over eras would manufacture exactly the upward trend this
+paper measures.
+
+\textbf{Bibliography leakage.} Candidate passages matching the
+reference-shape filter are required to be a negligible share of passages in both
+corpora.
+
+\textbf{Provenance.} Every output row carries the registry version, prompt
+version, model name and code commit that produced it, and every table is
+namespaced by that triple, so no analysis can mix extraction variants.
+Recomputation is staged: registry specification changes re-run capacity and
+downstream tables only; registry alias changes additionally re-run
+canonicalization; only a change to the matcher or the prompt requires re-running
+the scan or the LLM.
+
+\textbf{Known limitations.} Reporting is voluntary and unstandardized, so all
+estimates are lower bounds on actual accelerator use; capacity is nameplate peak
+rather than realized utilization; arXiv any-mention prevalence is biased upward
+by raw-source matching; consumer-hardware papers are systematically less likely
+to report device counts than cluster papers; and the S2ORC corpus inherits the
+field-labelling and text-extraction errors of its own pipeline. We release the
+registry, prompts, and mention-level derived records keyed by paper identifier;
+full text is not redistributed for either corpus.
