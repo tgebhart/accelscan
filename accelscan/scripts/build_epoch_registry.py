@@ -1,7 +1,10 @@
 """Build registry/generated/epoch.yaml from Epoch AI's ML-hardware table.
 
-Source: https://epoch.ai/data/machine-learning-hardware, exported to
-`registry/cache/ml_hardware.csv` (176 accelerators, 2008--2026). It covers the
+Source: https://epoch.ai/data/machine-learning-hardware, exported by hand to
+`registry/cache/ml_hardware.csv` (176 accelerators, 2008--2026). That path is
+gitignored, so re-running this generator means downloading the CSV again; the
+committed artefact is `registry/generated/epoch.yaml`, which carries the
+`spec_source` URL on every entry. It covers the
 long tail the Wikipedia GPU lists do not: Chinese domestic accelerators (Huawei
 Ascend variants, Cambricon MLU, Baidu Kunlun, Biren, MetaX, Iluvatar, Moore
 Threads), first-party cloud silicon (Meta MTIA, Microsoft Maia, AWS Trainium
