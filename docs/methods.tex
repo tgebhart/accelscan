@@ -142,11 +142,18 @@ never recorded in the FP32 column.
 The two corpora were scanned under adjacent registry versions --- S2ORC under
 v0.1.0 ($1{,}127$ entries, $1{,}838$ aliases; sources retrieved 2026-07-13) and
 arXiv under v0.2.0 ($1{,}139$ entries, $1{,}862$ aliases; retrieved
-2026-07-28). The bump added per-device specifications to existing entries and 12
-new models, removing none, so the matching surface is all but identical across
-corpora. Both capacity tables use v0.2.0 specifications; because specification
-additions do not change matching, they require re-running only stages 3.5 and
-later, never the scan or the LLM.
+2026-07-28). The bump changed no existing alias; it added per-device
+specifications to existing entries and 12 new models, all of them the GeForce
+RTX 40 series, which a malformed table cell had caused the scraper to drop. We
+bound the resulting S2ORC recall loss by measurement on arXiv, which was scanned
+with those aliases present: $14{,}728$ arXiv papers match an RTX 40 alias, but
+$98.1\%$ of them are also triggered by another registry term in the same
+passage, so only $282$ papers ($0.09\%$ of candidate papers) and $1{,}257$
+passages ($0.15\%$) would fail to be generated without them. Because the LLM
+reads whichever passages are generated and canonicalization runs against the
+current registry, RTX 40 attribution itself is unaffected. Both capacity tables
+use v0.2.0 specifications; specification additions do not change matching and so
+require re-running only stages 3.5 and later, never the scan or the LLM.
 
 \subsection{Candidate passage generation}
 

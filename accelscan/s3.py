@@ -61,6 +61,30 @@ def discover_mentions_version(model_tag: str, prompt_version: str,
     return max(versions, key=lambda v: [int(x) for x in v.split('.')])
 
 
+def discover_passages_version(corpus: Corpus = S2ORC, client=None) -> str:
+    """Return the registry version the repacked passage shards live under.
+
+    Stage 2 must read the version that *stage 1.5 wrote*, never
+    `load_registry().version`: a registry bump between the scan and the
+    inference run (specs added, models appended) leaves the passages where they
+    are, so keying off the local registry sends `get_object` at a nonexistent
+    `passages/{new}/shard_NNNN.parquet` and would also split the mentions table
+    across two version prefixes. Errors rather than guessing when several
+    versions coexist.
+    """
+    prefix = f'{corpus.out_prefix}/passages/'
+    versions = {k[len(prefix):].split('/')[0]
+                for k in list_keys(prefix, suffix='.parquet', client=client)}
+    if not versions:
+        raise FileNotFoundError(f'no passage shards under s3://{BUCKET}/{prefix} '
+                                f'— run `repack --corpus {corpus.name}` first')
+    if len(versions) > 1:
+        raise RuntimeError(
+            f'{corpus.name} has passages under {sorted(versions)}; pass '
+            f'--registry-version to choose one')
+    return versions.pop()
+
+
 def mentions_glob(model_tag: str, prompt_version: str,
                   mentions_version: str | None = None, client=None,
                   corpus: Corpus = S2ORC) -> str:

@@ -177,6 +177,8 @@ def main() -> None:
     ap.add_argument('--out-dir', default='output/infer_local')
     ap.add_argument('--limit', type=int)
     ap.add_argument('--corpus', default='s2orc', choices=['s2orc', 'arxiv'])
+    ap.add_argument('--registry-version', help='registry version the passage shards '
+                    'were repacked under (default: discovered from S3)')
     args = ap.parse_args()
 
     reg = load_registry()
@@ -202,14 +204,22 @@ def main() -> None:
     else:
         ap.error('pass --shards or --shard-index in S3 mode')
 
-    from accelscan.s3 import make_s3_client
+    from accelscan.s3 import discover_passages_version, make_s3_client
     client = make_s3_client()
     tag = model_tag(args.model)
+    c = get_corpus(args.corpus)
+    # The version that namespaces input and output is the one stage 1.5 wrote, NOT
+    # the locally installed registry: a bump between the scan and this run would
+    # otherwise 404 on the passage shard and split the mentions table in two.
+    pv = args.registry_version or discover_passages_version(c, client)
+    if pv != reg.version:
+        print(f'passages are under registry {pv}, local registry is {reg.version}; '
+              f'reading and writing {pv}', file=sys.stderr)
+        provenance['registry_version'] = pv
     llm = build_llm(args.model, args.max_model_len)  # loaded once, reused across shards
     params = sampling_params()
-    c = get_corpus(args.corpus)
     for shard_index in shards:
-        process_shard(client, llm, params, shard_index, tag, reg.version, provenance, c)
+        process_shard(client, llm, params, shard_index, tag, pv, provenance, c)
     print(f'done: {len(shards)} shard(s) processed', file=sys.stderr)
 
 
