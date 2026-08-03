@@ -36,6 +36,23 @@ cases:
     expect: [generic-gpu, nvidia-a100]
 
   # ---- hard negatives -------------------------------------------------
+  # Regressions from deriving brand triggers off the tables (v0.3.1). Each was
+  # measured on an 8-shard pilot before being fixed: 'Instinct' ungated hit the
+  # English word in 1,404 passages, and an insensitive 'ATI' let the automatic
+  # plural 's?' swallow the S of ATIS, the airline-travel NLP dataset.
+  - text: "aggression may be driven by human instinct rather than learning"
+    expect: []
+  - text: "maternal instincts were measured across three cohorts"
+    expect: []
+  - text: "we evaluate on the ATIS dataset for spoken language understanding"
+    expect: []
+  - text: "the aMD phase of the reaction was monitored"
+    expect: []
+  # ...while the real product and the mixed-case vendor spelling must still hit
+  - text: "an Instinct card with 32 GB of VRAM"
+    expect: [vendor-amd]
+  - text: "Nvidia drivers were installed for GPU acceleration"
+    expect: [generic-gpu, vendor-nvidia]
   - text: "the BMW M2 competition model drove fast"
     expect: []
   - text: "K80 cells were cultured overnight"

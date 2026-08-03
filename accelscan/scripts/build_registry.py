@@ -788,12 +788,22 @@ BRAND_DENY = {
     'xeon': 'overwhelmingly CPUs; "Xeon Phi" is its own family entry',
     'knights': 'ordinary word; covered by the Xeon Phi family entry',
 }
-BRAND_GATE = {'tesla': 'gpu', 'titan': 'gpu'}     # a car and a moon
-# The company name itself, gated uniformly. The rule is symmetric; the outcome
-# is not, because 'NVIDIA' and 'Radeon' are themselves gpu context terms while
-# 'AMD' and 'ATI' are not -- those vendors also sell CPUs, which is a documented
-# property of the gate vocabulary rather than a per-vendor exception here.
-VENDOR_NAMES = {'nvidia': ['NVIDIA'], 'amd': ['AMD', 'ATI']}
+# Brand words that are also ordinary English, so they are gated AND
+# case-sensitive -- the pilot measured 'Instinct' ungated matching the word
+# "instinct"/"instincts" in 1,404 passages of an 8-shard sample, all psychology
+# and behaviour papers. Any future brand token that is a dictionary word belongs
+# here -- there is no wordlist on the build host to check that automatically, so
+# `tests/test_registry.py` pins the known collisions as regressions instead.
+BRAND_GATE = {'tesla': 'gpu',       # the car company, and MRI field strengths
+              'titan': 'gpu',       # a moon, and titin adjacency
+              'instinct': 'gpu'}    # the English word
+# The company name itself, gated. Case is per name, not uniform: 'Nvidia' is
+# standard usage so that alias must be insensitive, whereas an insensitive 'AMD'
+# matches OCR noise ('aMD') and an insensitive 'ATI' lets the automatic plural
+# 's?' swallow the S of ATIS, the airline-travel NLP dataset (21 passages in the
+# same 8-shard sample).
+VENDOR_NAMES = {'nvidia': [('NVIDIA', 'insensitive')],
+                'amd': [('AMD', 'sensitive'), ('ATI', 'sensitive')]}
 
 
 def build_vendor_entries(entries: dict) -> None:
@@ -824,10 +834,8 @@ def build_vendor_entries(entries: dict) -> None:
             gate = BRAND_GATE.get(key)
             aliases.append({'pattern': spelling, 'gate': gate, 'case': 'sensitive'}
                            if gate else spelling)
-        for name in VENDOR_NAMES.get(mfr, []):
-            # case-insensitive: papers write 'Nvidia' as often as 'NVIDIA', and
-            # the auto rule would make an all-caps pattern case-sensitive
-            aliases.append({'pattern': name, 'gate': 'gpu', 'case': 'insensitive'})
+        for name, case in VENDOR_NAMES.get(mfr, []):
+            aliases.append({'pattern': name, 'gate': 'gpu', 'case': case})
         entries[f'vendor-{mfr}'] = {
             'id': f'vendor-{mfr}', 'display': f'{mfr.upper()} (brand mention)',
             'manufacturer': mfr, 'family': None, 'architecture': None,

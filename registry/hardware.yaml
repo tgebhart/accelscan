@@ -36,7 +36,7 @@
 #     a tier-A model hit elsewhere.
 #   - kind: model (default) | architecture | generic.
 
-version: "0.3.0"
+version: "0.3.1"
 
 context_terms:
   gpu: ["GPU", "GPUs", "GPGPU", "graphics card", "graphics cards", "video card",

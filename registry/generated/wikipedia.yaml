@@ -28,14 +28,16 @@ models:
   - FireGL
   - FireMV
   - FirePro
-  - Instinct
+  - pattern: Instinct
+    gate: gpu
+    case: sensitive
   - Radeon
   - pattern: AMD
     gate: gpu
-    case: insensitive
+    case: sensitive
   - pattern: ATI
     gate: gpu
-    case: insensitive
+    case: sensitive
 - id: vendor-nvidia
   display: NVIDIA (brand mention)
   manufacturer: nvidia
