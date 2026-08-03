@@ -8,6 +8,59 @@ sources:
   intel_arc: https://en.wikipedia.org/wiki/Intel_Arc
 retrieved: '2026-08-03'
 models:
+- id: vendor-amd
+  display: AMD (brand mention)
+  manufacturer: amd
+  family: null
+  architecture: null
+  subtype: generic-gpu
+  segment: null
+  kind: generic
+  release: null
+  release_source: null
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
+  aliases:
+  - FireGL
+  - FireMV
+  - FirePro
+  - Instinct
+  - Radeon
+  - pattern: AMD
+    gate: gpu
+    case: insensitive
+  - pattern: ATI
+    gate: gpu
+    case: insensitive
+- id: vendor-nvidia
+  display: NVIDIA (brand mention)
+  manufacturer: nvidia
+  family: null
+  architecture: null
+  subtype: generic-gpu
+  segment: null
+  kind: generic
+  release: null
+  release_source: null
+  fp32_gflops: null
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: null
+  tdp_w: null
+  spec_source: null
+  aliases:
+  - GeForce
+  - Quadro
+  - pattern: Tesla
+    gate: gpu
+    case: sensitive
+  - pattern: NVIDIA
+    gate: gpu
+    case: insensitive
 - id: nvidia-vanta-lt
   display: NVIDIA Vanta LT
   manufacturer: nvidia

@@ -36,6 +36,7 @@ import datetime
 import io
 import re
 import sys
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import pandas as pd
@@ -751,6 +752,82 @@ def parse_apple_page(html: str, url: str, entries: dict, stats: dict) -> None:
         }
 
 
+# --- vendor/brand triggers, derived from the parsed tables -------------------
+# These catch "an NVIDIA graphics card" / "a FirePro card" -- a vendor named with
+# no model number. Hand-listing them produced a lopsided vocabulary: NVIDIA had
+# GeForce, Quadro and Tesla while AMD had only Radeon, even though these tables
+# carry FirePro (70 models), FireGL (29) and Instinct (12). Deriving the tokens
+# from the data makes the vocabulary a function of each vendor's product lines
+# rather than of what we happened to remember.
+BRAND_MIN_MODELS = 5      # a product line, not a one-off
+BRAND_MIN_LEN = 4         # excludes series prefixes (GTX, RTX, RX, HD)
+# Leading tokens that are not usable hardware triggers: a different product
+# category, a company name, or an ordinary English word. Vendor-neutral by
+# construction -- each entry is a fact about the word, not about the vendor.
+BRAND_DENY = {
+    # company names come from VENDOR_NAMES below, gated; letting the derivation
+    # add them ungated would make a bare 'Intel' (i.e. every Core i7 paper) a GPU
+    # brand mention
+    'nvidia': 'company name, see VENDOR_NAMES',
+    'amd': 'company name, see VENDOR_NAMES',
+    'ati': 'company name, see VENDOR_NAMES',
+    'intel': 'company name, and overwhelmingly CPUs',
+    'google': 'company name, and overwhelmingly not hardware',
+    'apple': 'the company and the fruit; the apple gate vocabulary covers it',
+    'cloud': 'ordinary word, from "Cloud TPU v4"',
+    'xeon': 'overwhelmingly CPUs; "Xeon Phi" is its own family entry',
+    'knights': 'ordinary word; covered by the Xeon Phi family entry',
+}
+BRAND_GATE = {'tesla': 'gpu', 'titan': 'gpu'}     # a car and a moon
+# The company name itself, gated uniformly. The rule is symmetric; the outcome
+# is not, because 'NVIDIA' and 'Radeon' are themselves gpu context terms while
+# 'AMD' and 'ATI' are not -- those vendors also sell CPUs, which is a documented
+# property of the gate vocabulary rather than a per-vendor exception here.
+VENDOR_NAMES = {'nvidia': ['NVIDIA'], 'amd': ['AMD', 'ATI']}
+
+
+def build_vendor_entries(entries: dict) -> None:
+    brands: dict[str, Counter] = defaultdict(Counter)
+    for e in entries.values():
+        if e.get('kind', 'model') != 'model':
+            continue
+        for a in e.get('aliases', []):
+            pattern = a if isinstance(a, str) else a['pattern']
+            token = pattern.split(' ')[0].replace('\\', '')
+            if token.isalpha() and len(token) >= BRAND_MIN_LEN:
+                brands[e['manufacturer']][token] = brands[e['manufacturer']][token] + 1
+
+    for mfr, counts in brands.items():
+        # fold case variants ('TITAN'/'Titan') onto the most common spelling
+        folded: dict[str, tuple[int, str]] = {}
+        for token, n in counts.items():
+            key = token.lower()
+            prev = folded.get(key)
+            folded[key] = (n + (prev[0] if prev else 0),
+                           token if not prev or n > prev[0] else prev[1])
+        lines = [(k, spelling) for k, (n, spelling) in sorted(folded.items())
+                 if n >= BRAND_MIN_MODELS and k not in BRAND_DENY]
+        if not lines:
+            continue
+        aliases: list = []
+        for key, spelling in lines:
+            gate = BRAND_GATE.get(key)
+            aliases.append({'pattern': spelling, 'gate': gate, 'case': 'sensitive'}
+                           if gate else spelling)
+        for name in VENDOR_NAMES.get(mfr, []):
+            # case-insensitive: papers write 'Nvidia' as often as 'NVIDIA', and
+            # the auto rule would make an all-caps pattern case-sensitive
+            aliases.append({'pattern': name, 'gate': 'gpu', 'case': 'insensitive'})
+        entries[f'vendor-{mfr}'] = {
+            'id': f'vendor-{mfr}', 'display': f'{mfr.upper()} (brand mention)',
+            'manufacturer': mfr, 'family': None, 'architecture': None,
+            'subtype': 'generic-gpu', 'segment': None, 'kind': 'generic',
+            'release': None, 'release_source': None,
+            **{f: None for f in SPEC_FIELDS}, 'spec_source': None,
+            'aliases': aliases,
+        }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true')
@@ -773,7 +850,8 @@ def main() -> None:
         else:
             parse_gpu_page(html, manufacturer, url, entries, stats)
 
-    models = sorted(entries.values(), key=lambda m: (m['release'], m['id']))
+    build_vendor_entries(entries)
+    models = sorted(entries.values(), key=lambda m: (m['release'] or '', m['id']))
     out = {'sources': {k: v[1] for k, v in SOURCES.items()},
            'retrieved': datetime.date.today().isoformat(),
            'models': models}

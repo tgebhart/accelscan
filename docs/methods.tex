@@ -142,9 +142,16 @@ reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 568,
 AMD 546, Intel 43, Apple 18 and Google 11, then a long tail of eight or fewer
 entries each (Huawei, Cambricon, Baidu, Amazon, Meta, Microsoft, MetaX, Biren,
 Iluvatar, \ldots). By market segment: consumer 929, workstation 136,
-datacenter 130, cloud 22. Every specific model is generated; the hand-maintained
-file holds only the gate vocabularies, the generic terms, two vendor brand
-triggers and the architecture words, none of which any hardware table supplies.
+datacenter 130, cloud 22. Every specific model is generated, as are the two
+vendor brand-trigger entries: their aliases are the product-line names that lead
+model names in the tables, kept when they name at least five models and screened
+against a vendor-neutral list of words that are a different product category or
+ordinary English. Hand-listing them had given NVIDIA three brands (GeForce,
+Quadro, Tesla) and AMD one (Radeon), while the same tables carry five AMD lines
+(Radeon, FirePro, FireGL, FireMV, Instinct) --- an asymmetry in candidate recall
+that favoured the vendor whose share the paper reports. The hand-maintained file
+now holds only the gate vocabularies, the generic terms and the NVIDIA
+architecture words, none of which any hardware table supplies.
 Two classes are deliberately descoped and carry no model entry: embedded
 inference modules (the NVIDIA Jetson line) and wafer-scale/IPU parts (Cerebras,
 Graphcore), for which no source we parse publishes per-device specifications.

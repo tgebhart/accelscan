@@ -3,8 +3,10 @@
 # Model entries are GENERATED from Wikipedia/vendor sources by
 # accelscan/scripts/build_registry.py into registry/generated/*.yaml.
 # This file holds ONLY what no machine-readable source can give: the
-# context-term gate vocabularies, the generic terms, the vendor brand triggers
-# and the architecture words. Every specific model now comes from a generator --
+# context-term gate vocabularies, the generic terms, and the NVIDIA architecture
+# words. Even the vendor brand triggers (vendor-nvidia, vendor-amd) are now
+# derived from the product-line names in the tables, because hand-listing them
+# gave NVIDIA three brands and AMD one while the tables carry five for AMD. Every specific model now comes from a generator --
 # registry/generated/wikipedia.yaml (NVIDIA, AMD, TPU, Apple M-series, Xeon Phi,
 # Intel Arc) and registry/generated/epoch.yaml (Epoch AI's ML-hardware table:
 # Chinese domestic silicon, first-party cloud parts, export-control SKUs, Gaudi,
@@ -90,23 +92,6 @@ models:
     subtype: generic-accelerator
     kind: generic
     aliases: ["hardware accelerator", "AI accelerator", "accelerator card"]
-
-  # Vendor/brand triggers with no model number (candidate recall for
-  # "an NVIDIA graphics card"-style mentions). 'Tesla' is gated: MRI field
-  # strengths ("3 Tesla scanner") and the car company dominate bare usage.
-  - id: vendor-nvidia
-    display: "NVIDIA (brand mention)"
-    manufacturer: nvidia
-    subtype: generic-gpu
-    kind: generic
-    aliases: [{pattern: "NVIDIA", case: insensitive}, "GeForce", "Quadro",
-              {pattern: "Tesla", gate: gpu, case: sensitive}]
-  - id: vendor-amd
-    display: "AMD/ATI (brand mention)"
-    manufacturer: amd
-    subtype: generic-gpu
-    kind: generic
-    aliases: ["Radeon", {pattern: "AMD", gate: gpu}, {pattern: "ATI", gate: gpu}]
 
   # ------------------------------------------------------------------
   # Architecture words (gated; Fermi=physicist, Pascal=language/person,
