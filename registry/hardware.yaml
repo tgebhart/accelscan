@@ -21,7 +21,7 @@
 #     a tier-A model hit elsewhere.
 #   - kind: model (default) | architecture | generic.
 
-version: "0.2.0"
+version: "0.3.0"
 
 context_terms:
   gpu: ["GPU", "GPUs", "GPGPU", "graphics card", "graphics cards", "video card",
@@ -146,19 +146,13 @@ models:
   # ------------------------------------------------------------------
   # Long-tail accelerators not covered by the scraped Wikipedia list pages
   # (release dates from vendor announcements / Wikipedia product pages).
+  #
+  # Apple M-series is NOT here: as of v0.3.0 it is scraped per variant
+  # (M1/M1 Pro/M1 Max/M1 Ultra ... M5 Max) from the "Comparison of M-series
+  # processors" table on https://en.wikipedia.org/wiki/Apple_silicon, which
+  # supplies GPU FP32 throughput and max unified memory that the four
+  # collapsed hand entries here carried no specs for.
   # ------------------------------------------------------------------
-  - {id: apple-m1, display: "Apple M1", manufacturer: apple, family: m-series,
-     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2020-11,
-     aliases: ["Apple M1", {pattern: "M1 (Pro|Max|Ultra)", gate: apple}, {pattern: "M1", gate: apple}]}
-  - {id: apple-m2, display: "Apple M2", manufacturer: apple, family: m-series,
-     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2022-06,
-     aliases: ["Apple M2", {pattern: "M2 (Pro|Max|Ultra)", gate: apple}, {pattern: "M2", gate: apple}]}
-  - {id: apple-m3, display: "Apple M3", manufacturer: apple, family: m-series,
-     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2023-10,
-     aliases: ["Apple M3", {pattern: "M3 (Pro|Max|Ultra)", gate: apple}, {pattern: "M3", gate: apple}]}
-  - {id: apple-m4, display: "Apple M4", manufacturer: apple, family: m-series,
-     architecture: apple-silicon, subtype: mobile-gpu, segment: consumer, release: 2024-05,
-     aliases: ["Apple M4", {pattern: "M4 (Pro|Max|Ultra)", gate: apple}, {pattern: "M4", gate: apple}]}
   - {id: nvidia-jetson-tk1, display: "NVIDIA Jetson TK1", manufacturer: nvidia, family: jetson,
      architecture: kepler, subtype: mobile-gpu, segment: embedded, release: 2014-04,
      aliases: ["Jetson TK1"]}

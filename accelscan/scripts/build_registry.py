@@ -52,6 +52,7 @@ SOURCES = {
     'amd_instinct': ('amd', 'https://en.wikipedia.org/wiki/AMD_Instinct'),
     'amd': ('amd', 'https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units'),
     'tpu': ('google', 'https://en.wikipedia.org/wiki/Tensor_Processing_Unit'),
+    'apple': ('apple', 'https://en.wikipedia.org/wiki/Apple_silicon'),
 }
 
 SKIP_HEADING = re.compile(
@@ -462,6 +463,104 @@ def parse_tpu_page(html: str, url: str, entries: dict) -> None:
         }
 
 
+APPLE_HEADING = 'comparisonofm-seriesprocessors'
+APPLE_NAME = re.compile(r'^M(\d+)(?:\s+(Pro|Max|Ultra))?$')
+
+
+def parse_apple_page(html: str, url: str, entries: dict, stats: dict) -> None:
+    """Apple M-series from the 'Comparison of M-series processors' table.
+
+    Structurally the hardest page in SOURCES: three levels of column headers and
+    rowspans up to 36 rows, so the cell grid is only correct after pandas expands
+    the spans -- hand-walking `<tr>`s here silently mis-aligns columns. One chip
+    occupies several rows (its GPU-core bins: M4 Max ships 32- and 40-core), which
+    collapse per the same rule used for the NVIDIA/AMD variant rows: top
+    configuration for specs, earliest date for release.
+
+    Three axes are deliberately left null rather than filled with a
+    plausible-looking number:
+
+    - **fp64**: Metal exposes no double precision, so Apple GPUs have no FP64
+      figure to report. Null is the correct value and excludes them from that axis.
+    - **fp16 tensor**: the table's AI-accelerator column is the Neural Engine in
+      integer TOPS -- a separate engine, a different unit. Writing it into
+      `fp16_tensor_gflops` would corrupt the tensor-capability series with a
+      quantity that is not GPU dense FP16 throughput.
+    - **tdp**: Apple publishes none, and this table has no TDP column.
+
+    `vram_gb` is *unified* memory (shared with the CPU, and the maximum orderable
+    configuration), which is the GPU-addressable pool and so the right analogue
+    for the reported-memory estimand -- but it is not dedicated VRAM, hence the
+    per-entry note.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
+    table = None
+    for h in soup.find_all(['h2', 'h3', 'h4']):
+        # the heading renders as "Comparison of M -series processors"
+        if APPLE_HEADING in h.get_text('', strip=True).lower().replace(' ', ''):
+            table = h.find_next('table', class_='wikitable')
+            break
+    if table is None:
+        raise SystemExit(f'{url}: no table under a heading matching '
+                         f'{APPLE_HEADING!r} -- the page changed, fix the parser '
+                         f'rather than silently emitting no Apple entries')
+
+    df = pd.read_html(io.StringIO(str(table)))[0]
+    cols = flatten_columns(df)
+    idx = {k: find_col(cols, n) for k, n in
+           (('name', 'name'), ('fp32', 'fp32 flops'), ('vram', 'available capacity'),
+            ('release', 'first release'), ('cores', 'gpu cores'))}
+    missing = [k for k, v in idx.items() if v is None and k != 'cores']
+    if missing:
+        raise SystemExit(f'{url}: M-series table lacks column(s) {missing}; '
+                         f'saw {cols}')
+
+    per_chip: dict[str, dict] = {}
+    for row in df.itertuples(index=False):
+        cells = list(row)
+        name = ' '.join(FOOTNOTE.sub(' ', str(cells[idx['name']])).split())
+        m = APPLE_NAME.match(name)
+        if not m:
+            stats['skipped_models'] += 1
+            continue
+        release = parse_release(str(cells[idx['release']]))
+        if release is None:
+            stats['no_date'] += 1
+            continue
+        stats['rows'] += 1
+        # tera- -> giga-FLOPS; the memory cell lists every orderable size
+        fp32 = parse_spec_value(cells[idx['fp32']], 1000.0)
+        vram = parse_spec_value(cells[idx['vram']], 1.0)
+        cur = per_chip.setdefault(name, {'gen': m.group(1), 'suffix': m.group(2),
+                                        'release': release, 'fp32': None,
+                                        'vram': None})
+        cur['release'] = min(cur['release'], release)   # 'YYYY-MM' sorts as a date
+        for k, v in (('fp32', fp32), ('vram', vram)):
+            if v is not None:
+                cur[k] = v if cur[k] is None else max(cur[k], v)
+
+    for name, c in per_chip.items():
+        suffix = c['suffix']
+        mid = f'apple-m{c["gen"]}' + (f'-{suffix.lower()}' if suffix else '')
+        entries[mid] = {
+            'id': mid, 'display': f'Apple {name}', 'manufacturer': 'apple',
+            'family': 'm-series', 'architecture': f'apple-m{c["gen"]}',
+            'subtype': 'mobile-gpu', 'segment': 'consumer',
+            'release': c['release'], 'release_source': url,
+            'fp32_gflops': c['fp32'], 'fp64_gflops': None,
+            'fp16_tensor_gflops': None, 'vram_gb': c['vram'], 'tdp_w': None,
+            'spec_source': f'{url}#Comparison_of_M-series_processors',
+            'notes': 'vram_gb is max unified memory (shared with the CPU), not '
+                     'dedicated VRAM; fp64 undefined (no double precision in '
+                     'Metal); Neural Engine TOPS deliberately not mapped to the '
+                     'fp16 tensor axis',
+            # Gated on the 'apple' vocabulary: bare M1/M2/M4 are also the money
+            # supply, BMW models and manifold notation. 'M1 Pro' beats 'M1' by
+            # the longest-span rule in registry.match_paragraph.
+            'aliases': [f'Apple {name}', {'pattern': name, 'gate': 'apple'}],
+        }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true')
@@ -475,6 +574,8 @@ def main() -> None:
         html = fetch(name, url, use_cache=not args.no_cache)
         if name == 'tpu':
             parse_tpu_page(html, url, entries)
+        elif name == 'apple':
+            parse_apple_page(html, url, entries, stats)
         else:
             parse_gpu_page(html, manufacturer, url, entries, stats)
 

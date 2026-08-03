@@ -3,7 +3,8 @@ sources:
   amd_instinct: https://en.wikipedia.org/wiki/AMD_Instinct
   amd: https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units
   tpu: https://en.wikipedia.org/wiki/Tensor_Processing_Unit
-retrieved: '2026-07-28'
+  apple: https://en.wikipedia.org/wiki/Apple_silicon
+retrieved: '2026-08-03'
 models:
 - id: nvidia-vanta-lt
   display: NVIDIA Vanta LT
@@ -17394,6 +17395,27 @@ models:
   aliases:
   - Radeon RX 6800 XT
   - RX 6800 XT
+- id: apple-m1
+  display: Apple M1
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m1
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2020-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 2617.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 16.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M1
+  - pattern: M1
+    gate: apple
 - id: amd-radeon-pro-v520
   display: AMD Radeon Pro V520
   manufacturer: amd
@@ -17878,6 +17900,48 @@ models:
   aliases:
   - Radeon RX 6600
   - RX 6600
+- id: apple-m1-max
+  display: Apple M1 Max
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m1
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2021-10
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 10616.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 64.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M1 Max
+  - pattern: M1 Max
+    gate: apple
+- id: apple-m1-pro
+  display: Apple M1 Pro
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m1
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2021-10
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 5308.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M1 Pro
+  - pattern: M1 Pro
+    gate: apple
 - id: amd-mi250
   display: AMD MI250
   manufacturer: amd
@@ -18140,6 +18204,27 @@ models:
   - Radeon Pro W6600X
   - pattern: W6600X
     gate: gpu
+- id: apple-m1-ultra
+  display: Apple M1 Ultra
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m1
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2022-03
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 21233.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M1 Ultra
+  - pattern: M1 Ultra
+    gate: apple
 - id: nvidia-geforce-rtx-3090-ti
   display: NVIDIA GeForce RTX 3090 Ti
   manufacturer: nvidia
@@ -18250,6 +18335,27 @@ models:
   aliases:
   - Radeon RX 6950 XT
   - RX 6950 XT
+- id: apple-m2
+  display: Apple M2
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m2
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2022-06
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 3578.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 24.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M2
+  - pattern: M2
+    gate: apple
 - id: nvidia-geforce-gtx-1630
   display: NVIDIA GeForce GTX 1630
   manufacturer: nvidia
@@ -18452,6 +18558,48 @@ models:
   - TPU v5p
   - TPUv5p
   - Cloud TPU v5p
+- id: apple-m2-max
+  display: Apple M2 Max
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m2
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-01
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 13599.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 96.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M2 Max
+  - pattern: M2 Max
+    gate: apple
+- id: apple-m2-pro
+  display: Apple M2 Pro
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m2
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-01
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 6799.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M2 Pro
+  - pattern: M2 Pro
+    gate: apple
 - id: nvidia-geforce-rtx-4070-ti
   display: NVIDIA GeForce RTX 4070 Ti
   manufacturer: nvidia
@@ -18598,6 +18746,27 @@ models:
   aliases:
   - GeForce RTX 4060 Ti
   - RTX 4060 Ti
+- id: apple-m2-ultra
+  display: Apple M2 Ultra
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m2
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-06
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 27199.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 192.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M2 Ultra
+  - pattern: M2 Ultra
+    gate: apple
 - id: nvidia-geforce-rtx-4060
   display: NVIDIA GeForce RTX 4060
   manufacturer: nvidia
@@ -18814,6 +18983,69 @@ models:
   - Radeon Pro W7700
   - pattern: W7700
     gate: gpu
+- id: apple-m3
+  display: Apple M3
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m3
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 3533.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 24.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M3
+  - pattern: M3
+    gate: apple
+- id: apple-m3-max
+  display: Apple M3 Max
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m3
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 14131.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M3 Max
+  - pattern: M3 Max
+    gate: apple
+- id: apple-m3-pro
+  display: Apple M3 Pro
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m3
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2023-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 6359.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 36.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M3 Pro
+  - pattern: M3 Pro
+    gate: apple
 - id: amd-mi300a
   display: AMD MI300A
   manufacturer: amd
@@ -19076,6 +19308,27 @@ models:
   - RTX A400
   - pattern: A400
     gate: gpu
+- id: apple-m4
+  display: Apple M4
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m4
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2024-05
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 3760.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M4
+  - pattern: M4
+    gate: apple
 - id: amd-radeon-pro-w7900-dual-slot
   display: AMD Radeon Pro W7900 Dual Slot
   manufacturer: amd
@@ -19130,6 +19383,48 @@ models:
   - Radeon Pro V710
   - pattern: V710
     gate: gpu
+- id: apple-m4-max
+  display: Apple M4 Max
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m4
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2024-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 16160.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M4 Max
+  - pattern: M4 Max
+    gate: apple
+- id: apple-m4-pro
+  display: Apple M4 Pro
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m4
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2024-11
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 8080.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 64.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M4 Pro
+  - pattern: M4 Pro
+    gate: apple
 - id: nvidia-b200
   display: NVIDIA B200
   manufacturer: nvidia
@@ -19334,6 +19629,27 @@ models:
   aliases:
   - Radeon RX 9070 XT
   - RX 9070 XT
+- id: apple-m3-ultra
+  display: Apple M3 Ultra
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m3
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2025-03
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 28262.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 512.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M3 Ultra
+  - pattern: M3 Ultra
+    gate: apple
 - id: nvidia-geforce-rtx-5070
   display: NVIDIA GeForce RTX 5070
   manufacturer: nvidia
@@ -19682,6 +19998,27 @@ models:
   - NVIDIA B300
   - pattern: B300
     gate: gpu
+- id: apple-m5
+  display: Apple M5
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m5
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2025-10
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 4150.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 32.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M5
+  - pattern: M5
+    gate: apple
 - id: amd-radeon-ai-pro-r9600d
   display: AMD Radeon AI Pro R9600D
   manufacturer: amd
@@ -19758,3 +20095,45 @@ models:
   - TPU v8t
   - TPUv8t
   - Cloud TPU v8t
+- id: apple-m5-max
+  display: Apple M5 Max
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m5
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2026-03
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 16590.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 128.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M5 Max
+  - pattern: M5 Max
+    gate: apple
+- id: apple-m5-pro
+  display: Apple M5 Pro
+  manufacturer: apple
+  family: m-series
+  architecture: apple-m5
+  subtype: mobile-gpu
+  segment: consumer
+  release: 2026-03
+  release_source: https://en.wikipedia.org/wiki/Apple_silicon
+  fp32_gflops: 8290.0
+  fp64_gflops: null
+  fp16_tensor_gflops: null
+  vram_gb: 64.0
+  tdp_w: null
+  spec_source: https://en.wikipedia.org/wiki/Apple_silicon#Comparison_of_M-series_processors
+  notes: vram_gb is max unified memory (shared with the CPU), not dedicated VRAM; fp64 undefined (no double
+    precision in Metal); Neural Engine TOPS deliberately not mapped to the fp16 tensor axis
+  aliases:
+  - Apple M5 Pro
+  - pattern: M5 Pro
+    gate: apple

@@ -1,6 +1,6 @@
 % Methods section for "Graphical Processing Units in Science".
 % Every quantity below is read from the pipeline's own output tables
-% (registry v0.2.0; extraction 2026-07/08). Regenerate with the notebooks in
+% (registry v0.3.0; extraction 2026-07/08). Regenerate with the notebooks in
 % notebooks/ and notebooks/arxiv/ if the pipeline is re-run.
 %
 % KNOWN INCOMPLETENESS (see \S3.5): S2ORC passage shards 6, 27 and 28 --
@@ -110,8 +110,9 @@ versioned; every output table is namespaced by the registry version that
 produced it). Model entries are \emph{generated}, not authored: a scraper
 (\texttt{scripts/build\_registry.py}) parses the specification tables of the
 Wikipedia lists of NVIDIA and AMD graphics processing units, the AMD Instinct
-page, and the Tensor Processing Unit page, collapsing per-variant rows (memory
-size, form factor, edition) into canonical models and merging duplicate entries
+page, the Tensor Processing Unit page, and the ``Comparison of M-series
+processors'' table of the Apple silicon page, collapsing per-variant rows (memory
+size, form factor, GPU-core bin, edition) into canonical models and merging duplicate entries
 across pages by taking the earliest launch date, the union of aliases, and the
 element-wise maximum of specifications. Only rows with a parseable launch date
 $\ge 2000$ are kept; mobile, integrated, console and chipset sections are
@@ -121,17 +122,20 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- context-gate vocabularies, generic and architecture entries, and
 overrides, which replace generated entries by id.
 
-Registry v0.2.0 contains $1{,}139$ entries: $1{,}117$ specific models, 13
+Registry v0.3.0 contains $1{,}153$ entries: $1{,}131$ specific models, 13
 architectures (Fermi, Kepler, \ldots), and 9 generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
-reporting is measurable). By manufacturer: NVIDIA 562, AMD 544, Google 10,
-Intel 6, Apple 4, Cerebras 3, Huawei 2, Amazon 2, Graphcore 1. By market
-segment: consumer 908, workstation 130, datacenter 62, cloud 11, embedded 6.
-Release dates span 2000--2026 and are populated for all $1{,}117$ models, since
+reporting is measurable). By manufacturer: NVIDIA 562, AMD 544, Apple 18,
+Google 10, Intel 6, Cerebras 3, Huawei 2, Amazon 2, Graphcore 1. By market
+segment: consumer 922, workstation 130, datacenter 62, cloud 11, embedded 6.
+Apple silicon is carried per chip variant (M1, M1 Pro, M1 Max, M1 Ultra, \ldots,
+M5 Max) rather than per generation, because within a generation the variants
+differ by up to $8\times$ in GPU throughput and $16\times$ in addressable memory.
+Release dates span 2000--2026 and are populated for all $1{,}131$ models, since
 the frontier-lag and half-life estimands depend on them. Per-device
-specification coverage across models is: memory $97.5\%$, FP32 $63.5\%$, FP64
-$46.6\%$, dense FP16 tensor throughput $5.8\%$ (defined only for post-Volta
-parts), TDP $68.9\%$. Missing specifications remain null and are excluded
+specification coverage across models is: memory $97.9\%$, FP32 $64.3\%$, FP64
+$46.0\%$, dense FP16 tensor throughput $5.7\%$ (defined only for post-Volta
+parts), TDP $68.1\%$. Missing specifications remain null and are excluded
 per-axis rather than zero-filled.
 
 Following the FLOPS convention required for cross-generation comparability, we
@@ -151,9 +155,10 @@ $98.1\%$ of them are also triggered by another registry term in the same
 passage, so only $282$ papers ($0.09\%$ of candidate papers) and $1{,}257$
 passages ($0.15\%$) would fail to be generated without them. Because the LLM
 reads whichever passages are generated and canonicalization runs against the
-current registry, RTX 40 attribution itself is unaffected. Both capacity tables
-use v0.2.0 specifications; specification additions do not change matching and so
-require re-running only stages 3.5 and later, never the scan or the LLM.
+current registry, RTX 40 attribution itself is unaffected. Both capacity tables use the
+current registry's specifications (v0.3.0, which additionally splits Apple
+silicon into per-variant entries); specification additions do not change matching
+and so require re-running only stages 3.5 and later, never the scan or the LLM.
 
 \subsection{Candidate passage generation}
 
@@ -162,7 +167,8 @@ Stage 1 is a single CPU pass over each corpus emitting two products: an
 matched paragraph.
 
 Matching is three-layered. (i) An Aho--Corasick automaton over the lowercase
-literal cores of all $1{,}862$ aliases prefilters paragraphs; a hit must fall on
+literal cores of every alias in the extraction-time registry ($1{,}862$ for
+arXiv, $1{,}838$ for S2ORC) prefilters paragraphs; a hit must fall on
 word boundaries in the haystack. The overwhelming majority of paragraphs stop
 here, which is what makes a full-corpus sweep affordable. (ii) For each
 surviving core, a confirming per-alias regular expression is applied, wrapped in
@@ -176,7 +182,7 @@ are resolved by longest span, so \texttt{RTX 3090 Ti} beats \texttt{RTX 3090}
 without hand-authored lookaheads. (iii) Ambiguous aliases --- short codes whose
 strings collide with non-hardware usage (\texttt{K80} the antibody, \texttt{M2}
 the money supply, architecture names that are ordinary words) --- are marked
-tier~B ($236$ of $1{,}862$ aliases) and count only if a context term from the
+tier~B ($236$ of the arXiv scan's $1{,}862$ aliases) and count only if a context term from the
 relevant gate vocabulary (\texttt{gpu}: 21 terms; \texttt{tpu}: 5;
 \texttt{apple}: 8) occurs within $\pm 250$ characters of the match, taken over
 the paragraph and its immediate neighbours. A paper-level rescue then un-gates
@@ -326,6 +332,14 @@ memory figure stated in text resolves configuration variants (e.g.\ A100 40 vs.\
 80\,GB) in preference to the registry default; stated memory is available for
 $11.2\%$ (S2ORC) and $12.5\%$ (arXiv) of confirmed mentions, which also supplies
 a validation subset for the specification-imputed series.
+
+Two spec conventions are worth stating because they are visible in the results.
+Integrated Apple GPUs have no FP64 figure (Metal exposes no double precision) and
+no dense FP16 tensor figure (the Neural Engine's integer TOPS is a different
+engine and a different unit), so they are null on those axes and excluded from
+them rather than imputed; and their memory figure is \emph{unified} memory, the
+maximum orderable configuration shared with the CPU, which is the
+GPU-addressable pool but not dedicated VRAM.
 
 \textbf{Interpretation.} These are \emph{reported nameplate peak} quantities,
 not utilized FLOPs: they measure the capacity a paper had access to and chose to

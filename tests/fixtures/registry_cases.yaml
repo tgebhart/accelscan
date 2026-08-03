@@ -23,7 +23,11 @@ cases:
   - text: "we simulated the model on 4 GPUs"
     expect: [generic-gpu]
   - text: "an Apple M2 MacBook Pro was used for analysis"
-    expect: [apple-m2]
+    expect: [apple-m2]        # 'M2 ... Pro' is not 'M2 Pro'
+  - text: "fine-tuned on an M4 Max MacBook Pro"
+    expect: [apple-m4-max]    # variant wins over the bare generation
+  - text: "a Mac Studio with the M2 Ultra chip"
+    expect: [apple-m2-ultra]
   - text: "training used TPUv4 chips"
     expect: [google-tpu-v4]
   - text: "an A100 80GB GPU served the model"

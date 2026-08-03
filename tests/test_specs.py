@@ -62,6 +62,45 @@ def test_no_tensor_specs_on_pre_volta(reg):
         assert reg.models[mid].fp16_tensor_gflops is None, f'{mid} has tensor spec'
 
 
+# Apple's own published GPU figures (TFLOPS -> GFLOPS), for the top GPU bin of
+# each chip. Oracles only; the registry reads them from the Apple silicon page.
+APPLE_PUBLISHED = {'apple-m1': 2600, 'apple-m1-ultra': 21000,
+                   'apple-m2-ultra': 27200, 'apple-m4-max': 16160}
+
+
+@pytest.mark.parametrize('mid', sorted(APPLE_PUBLISHED))
+def test_apple_gpu_fp32(reg, mid):
+    got = reg.models[mid].fp32_gflops
+    exp = APPLE_PUBLISHED[mid]
+    assert got is not None, f'{mid}: fp32 missing'
+    assert abs(got - exp) / exp < 0.05, f'{mid}: fp32={got}, expected ~{exp}'
+
+
+def test_apple_variants_are_separate_entries(reg):
+    """Pro/Max/Ultra differ by up to 8x in GPU throughput, so collapsing a
+    generation into one entry (as the pre-0.3.0 hand entries did) would put an
+    M1 Ultra's 21 TFLOPS and an M1's 2.6 into the same capacity bucket."""
+    for gen in ('m1', 'm2', 'm3'):
+        base, ultra = reg.models[f'apple-{gen}'], reg.models[f'apple-{gen}-ultra']
+        assert ultra.fp32_gflops > 5 * base.fp32_gflops
+        assert ultra.vram_gb > base.vram_gb
+    # longest-span resolution must prefer the variant over the bare generation
+    ms = reg.match_paragraph('we used an M4 Max in a MacBook Pro')
+    assert [m.model_id for m in ms] == ['apple-m4-max']
+
+
+def test_apple_axes_left_null(reg):
+    """Metal exposes no FP64, and the Neural Engine's integer TOPS is not GPU
+    dense FP16 throughput -- both axes must stay null rather than be filled."""
+    apple = [m for m in reg.models.values() if m.manufacturer == 'apple']
+    assert len(apple) >= 18
+    for m in apple:
+        assert m.fp64_gflops is None, f'{m.id}: unexpected fp64'
+        assert m.fp16_tensor_gflops is None, f'{m.id}: Neural Engine TOPS leaked in'
+        assert m.fp32_gflops is not None and m.vram_gb is not None, f'{m.id}: no specs'
+        assert 'unified memory' in (m.notes or ''), f'{m.id}: missing vram caveat'
+
+
 def test_spec_coverage_floor(reg):
     """Guard against a scrape regression silently emptying the spec columns."""
     models = [m for m in reg.models.values() if m.kind == 'model']
