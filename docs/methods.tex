@@ -3,6 +3,12 @@
 % (registry v0.3.0; extraction 2026-07/08). Regenerate with the notebooks in
 % notebooks/ and notebooks/arxiv/ if the pipeline is re-run.
 %
+% MIXED INVENTORY: `inventory/parts/` is not namespaced by registry version, and
+% an 8-shard pilot re-scan under v0.3.1 overwrote those parts in place. So
+% `is_candidate` reflects v0.3.1 for 8 of 214 S2ORC shards and v0.1.0 for the
+% rest: 399,690 candidate papers against 399,841 before, a 0.04% difference that
+% moves only the funnel's candidate row. A full stage-1 re-scan makes it uniform.
+%
 % KNOWN INCOMPLETENESS (see \S3.5): S2ORC passage shards 6, 27 and 28 --
 % 75,000 of 877,101 candidate passages (8.6\%) -- have no mentions table, and
 % the missing passages are skewed toward recent publication years. All S2ORC

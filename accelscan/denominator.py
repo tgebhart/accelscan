@@ -50,9 +50,16 @@ USED = 'used-in-this-work'
 
 def build_denominator(so: dict, client, c: Corpus = S2ORC) -> pl.DataFrame:
     """Full-text population with year + field. One row per paper."""
-    inv = pl.read_parquet(
-        inventory_glob(c), storage_options=so,
-        columns=[c.key, 'has_body', 'is_candidate', 'body_chars'])
+    # `inventory/parts/` is NOT namespaced by registry version, so a re-scan
+    # overwrites parts in place and the prefix can hold two schemas at once: parts
+    # written before `paper_id` was added alongside parts written after. polars
+    # rejects that by default ("extra column in file outside of expected schema"),
+    # so read lazily with the projection pushed down -- the selected columns exist
+    # in both shapes, and `extra_columns='ignore'` tolerates the difference.
+    inv = pl.scan_parquet(
+        inventory_glob(c), storage_options=so, extra_columns='ignore',
+        missing_columns='insert').select(
+            c.key, 'has_body', 'is_candidate', 'body_chars').collect()
     inv = inv.unique(c.key)
     print(f'{c.name} inventory: {inv.height:,} full-text papers', file=sys.stderr)
 
