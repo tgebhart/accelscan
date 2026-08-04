@@ -253,41 +253,42 @@ Stage 1 is a single CPU pass over each corpus emitting two products: an
 \emph{inventory} row per paper (the population), and a \emph{candidate} row per
 matched paragraph.
 
-Matching is three-layered. (i) An Aho--Corasick automaton over the lowercase
-literal cores of every alias in the extraction-time registry ($2{,}178$ in
-v0.4.0) prefilters paragraphs; a hit must fall on
-word boundaries in the haystack. The overwhelming majority of paragraphs stop
-here, which is what makes a full-corpus sweep affordable. (ii) For each
-surviving core, a confirming per-alias regular expression is applied, wrapped in
-hardware-safe boundaries \verb|(?<!\w)(?:...)s?(?!\w)| so that \texttt{V100}
-does not match \texttt{CV100x} or \texttt{V1000}; literal spaces compile to
-\verb|[\s-]*| so \texttt{RTX 3090}, \texttt{RTX-3090} and \texttt{RTX3090} are
-one alias. Note that the separator is zero-or-more, so a closed-up
-\texttt{TeslaV100} matches by design. Case sensitivity is derived from the
-pattern: all-uppercase aliases (\texttt{GPU}, \texttt{V100}, \texttt{K80}) match
-case-sensitively and mixed-case ones (\texttt{Tesla V100}) case-insensitively,
-except that a vendor-led pattern is always case-insensitive (see the registry
-subsection). Overlapping matches are resolved by longest span, so
-\texttt{RTX 3090 Ti} beats \texttt{RTX 3090} without hand-authored lookaheads;
-two \emph{equal-length} spans from different entries are both retained and the
-disambiguation is left to the LLM and to canonicalization. (iii) Ambiguous
-aliases --- short codes whose strings collide with non-hardware usage
-(\texttt{K80} the antibody, \texttt{M2} the money supply, brand words that are
-ordinary English) --- are marked tier~B ($318$ of v0.4.0's $2{,}178$ aliases) and count only if a
-context term from the relevant gate vocabulary (\texttt{gpu}: 21 terms;
-\texttt{tpu}: 5; \texttt{apple}: 8) appears within the matched paragraph or the
-adjacent $250$ characters of either neighbouring paragraph. The gate is
-position-independent within that window rather than a $\pm250$-character
-neighbourhood of the match itself, which makes it permissive for a long
-paragraph; that is the intended direction. A paper-level rescue then un-gates
-tier~B matches in papers carrying at least one ungated model hit anywhere. Its
-contribution is recorded per passage and small: of $854{,}878$ S2ORC candidate
-passages, $45{,}217$ ($5.3\%$) are triggered by tier-B aliases alone, and
-$15{,}557$ ($1.8\%$ of all passages, $34.4\%$ of the tier-B-only ones) exist only
-because of the rescue rather than a locally satisfied gate. A local-gate-only
-series is therefore available as robustness on under two per cent of passages. Gating errs permissive by design: it
-exists to bound candidate volume, not to be precise, because precision is the
-LLM's job.
+Matching proceeds in three stages over every paragraph, each stage cheap enough to
+run at the scale the next one could not.
+
+\begin{enumerate}
+\item \textbf{Literal prefilter.} An Aho--Corasick automaton over the lowercase
+literal cores of all $2{,}178$ aliases scans the paragraph, and a core must fall on
+word boundaries in the haystack to count. The overwhelming majority of paragraphs
+stop here, which is what makes a full-corpus sweep affordable.
+
+\item \textbf{Confirming match.} Each surviving core is confirmed by the regular
+expression compiled for its alias, under the conventions in
+Table~\ref{tab:matching-conventions}: hardware-safe word boundaries with an
+optional plural, whitespace and hyphens interchangeable as separators, and case
+sensitivity derived from the pattern. Overlapping matches resolve to the longest
+span, so a variant alias supersedes the base model it contains without
+hand-authored lookaheads; two \emph{equal-length} spans from different entries are
+both retained and left to the LLM and to canonicalization.
+
+\item \textbf{Context gate.} Aliases whose strings collide with non-hardware usage
+are tier~B ($318$ of $2{,}178$) and count only if a term from the relevant gate
+vocabulary (\texttt{gpu}: 21 terms; \texttt{tpu}: 5; \texttt{apple}: 8) appears
+within the matched paragraph or the adjacent $250$ characters of either neighbour.
+The gate is position-independent within that window rather than a
+$\pm250$-character neighbourhood of the match, which makes it permissive for a long
+paragraph; that is the intended direction, since precision is the LLM's job and the
+gate exists to bound candidate volume.
+\end{enumerate}
+
+\input{tables/matching_conventions}
+A paper-level rescue then un-gates tier~B matches in papers carrying at least one
+ungated model hit anywhere. Its contribution is recorded per passage and small: of
+$854{,}878$ S2ORC candidate passages, $45{,}217$ ($5.3\%$) are triggered by tier-B
+aliases alone, and $15{,}557$ ($1.8\%$ of all passages, $34.4\%$ of the tier-B-only
+ones) exist only because of the rescue rather than a locally satisfied gate. A
+local-gate-only series is therefore available as robustness on under two per cent
+of passages.
 
 Each matched paragraph yields one candidate passage: the paragraph plus its
 immediate neighbours, capped at $2{,}500$ characters ($\approx 600$ tokens). The

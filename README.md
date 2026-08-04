@@ -47,6 +47,10 @@ cp .env.example ~/.config/accelscan.env   # fill in MSI S3 keys
   content changed without a bump.
 - `python -m accelscan.scripts.eval_shner` measures candidate-generation recall
   against SH-NER's manual annotations (see the script docstring for the download).
+- `python -m accelscan.scripts.matching_table` regenerates the matching-conventions
+  table (`docs/tables/matching_conventions.tex`). Every exemplar is run through the
+  live matcher first, so the table cannot drift from `registry.py` — it exits
+  non-zero instead.
 - `python -m accelscan.scripts.registry_stats` regenerates the registry-composition
   numbers (entries by vendor/segment, release spans, per-axis spec coverage, alias
   and tier-B counts) and writes `docs/tables/registry_composition.tex`, which
