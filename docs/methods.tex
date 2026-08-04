@@ -1,6 +1,6 @@
 % Methods section for "Graphical Processing Units in Science".
 % Every quantity below is read from the pipeline's own output tables
-% (registry v0.3.0; extraction 2026-07/08). Regenerate with the notebooks in
+% (registry v0.3.1; extraction 2026-07/08). Regenerate with the notebooks in
 % notebooks/ and notebooks/arxiv/ if the pipeline is re-run.
 %
 % MIXED INVENTORY: `inventory/parts/` is not namespaced by registry version, and
@@ -141,7 +141,7 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- context-gate vocabularies, generic and architecture entries, and
 overrides, which replace generated entries by id.
 
-Registry v0.3.0 contains $1{,}226$ entries: $1{,}217$ specific models and 9
+Registry v0.3.1 contains $1{,}226$ entries: $1{,}217$ specific models and 9
 generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
 reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 568,
@@ -204,7 +204,7 @@ passage, so only $282$ papers ($0.09\%$ of candidate papers) and $1{,}257$
 passages ($0.15\%$) would fail to be generated without them. Because the LLM
 reads whichever passages are generated and canonicalization runs against the
 current registry, RTX 40 attribution itself is unaffected. Both capacity tables use the
-current registry's specifications (v0.3.0, which additionally splits Apple
+current registry's specifications (v0.3.1, which additionally splits Apple
 silicon into per-variant entries); specification additions do not change matching
 and so require re-running only stages 3.5 and later, never the scan or the LLM.
 
