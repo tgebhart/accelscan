@@ -22,15 +22,28 @@ cp .env.example ~/.config/accelscan.env   # fill in MSI S3 keys
 
 ## Registry
 
-- `registry/hardware.yaml` — hand-maintained: context-term gate vocabularies,
-  generic/vendor/architecture entries, long-tail accelerators, and overrides
-  (same id replaces a generated entry).
-- `registry/generated/wikipedia.yaml` — built from the Wikipedia GPU lists:
-  `python -m accelscan.scripts.build_registry` (cached HTML in
-  `registry/cache/`; `--no-cache` to refetch).
+- `registry/hardware.yaml` — hand-maintained, and it names no device: the three
+  context-term gate vocabularies, the seven generic terms (GPU, CUDA, TPU, …),
+  and the `version`. A same-id entry here overrides a generated one, which is the
+  escape hatch if a scrape goes wrong.
+- `registry/generated/wikipedia.yaml` — NVIDIA + AMD GPU lists, AMD Instinct,
+  TPU, Apple M-series, Xeon Phi, Intel Arc:
+  `python -m accelscan.scripts.build_registry` (cached HTML in `registry/cache/`,
+  gitignored; `--no-cache` refetches the pinned `oldid` permalinks).
+- `registry/generated/epoch.yaml` — the long tail those pages omit (Chinese
+  domestic silicon, first-party cloud parts, export-control SKUs, Gaudi, Ascend,
+  Trainium/Inferentia), from Epoch AI's ML-hardware CSV:
+  `python -m accelscan.scripts.build_epoch_registry`. Emits only devices the
+  existing registry does not already resolve.
+- `accelscan/scripts/alias_rules.py` — the bare-code and vendor-case rules, shared
+  by both generators so one alias namespace has one policy.
 - Every false positive/negative found in audits becomes a fixture in
   `tests/fixtures/registry_cases.yaml`. Bump `version` in hardware.yaml on any
-  change; outputs are namespaced by it.
+  change, then `python -m accelscan.scripts.registry_digest --write`; outputs are
+  namespaced by the version, and `tests/test_registry_digest.py` fails if registry
+  content changed without a bump.
+- `python -m accelscan.scripts.eval_shner` measures candidate-generation recall
+  against SH-NER's manual annotations (see the script docstring for the download).
 
 ## Pipeline
 

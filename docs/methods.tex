@@ -1,7 +1,22 @@
 % Methods section for "Graphical Processing Units in Science".
-% Every quantity below is read from the pipeline's own output tables
-% (registry v0.3.1; extraction 2026-07/08). Regenerate with the notebooks in
-% notebooks/ and notebooks/arxiv/ if the pipeline is re-run.
+% Every quantity below is read from the pipeline's own output tables.
+% Regenerate with the notebooks in notebooks/ and notebooks/arxiv/ if the
+% pipeline is re-run.
+%
+% PENDING RE-EXTRACTION under registry v0.4.0. The registry description below is
+% v0.4.0 (current); the *counts* are still from the tables built under v0.1.0
+% (S2ORC) and v0.2.0 (arXiv). v0.4.0 changed matching -- one shared bare-code
+% rule, case-insensitive vendor-qualified aliases, the 1080Ti/RTX-8000 forms --
+% so a full single-version re-scan of both corpora is underway. Numbers to
+% re-read from the v0.4.0 tables when it lands, and nothing else:
+%   - the candidate/passage/mention funnel counts in "Candidate passage
+%     generation" and "LLM extraction and validation";
+%   - the tier-B alias count and the alias totals quoted as scan-time figures;
+%   - the canonicalization rates and unresolved-bucket shares in "Normalization";
+%   - the pre-release-mention rate in "Validity checks";
+%   - and the paragraph on cross-version divergence, which the re-scan retires
+%     outright (both corpora will share one registry version).
+% Everything descriptive -- rules, conventions, thresholds -- is already v0.4.0.
 %
 % MIXED INVENTORY: `inventory/parts/` is not namespaced by registry version, and
 % an 8-shard pilot re-scan under v0.3.1 overwrote those parts in place. So
@@ -138,14 +153,38 @@ $\ge 2000$ are kept; mobile, integrated, console and chipset sections are
 skipped. No specification number is ever taken from model memory: each entry
 records a \texttt{spec\_source} naming the source page and table heading.
 Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
-scraped --- context-gate vocabularies, generic and architecture entries, and
-overrides, which replace generated entries by id.
+scraped --- the context-gate vocabularies, the generic terms, and per-id
+overrides that replace a generated entry should a scrape ever go wrong.
 
-Registry v0.3.1 contains $1{,}226$ entries: $1{,}217$ specific models and 9
+Because both generators write into one alias namespace, the rules that decide
+alias \emph{tier} are stated once and shared
+(\texttt{scripts/alias\_rules.py}) rather than per generator. A bare short code
+receives a gated alias unless (i) the code carries a named non-hardware meaning,
+or (ii) another entry already claims that exact string. Clause (i) is an
+enumerated list, each item recording the collision that earns it a place
+(\texttt{T4} thyroxine and the thoracic vertebra, \texttt{L2} regularization and
+cache, \texttt{H20} water, \texttt{MI6} the agency, \texttt{A10} the aircraft,
+\texttt{C60} fullerene), plus a general clause denying every all-digit code,
+since a bare \texttt{7210} or \texttt{910} is a quantity in prose and no context
+vocabulary distinguishes the two. Clause (ii) covers genuine cross-vendor
+collisions: Intel's Arc~Pro~A40 and NVIDIA's A40 are different devices with one
+code, as are the Radeon~Pro~5500~XT and the RX~5500~XT, so the bare form
+identifies neither and each keeps its qualified spelling. Denied models remain
+reachable through a vendor- or line-qualified alias (``NVIDIA L4'', ``Tesla T4'',
+``Xeon Phi 7210''). A length threshold was considered as the rule and rejected:
+it states more simply but discards \texttt{K80}, \texttt{K20}, \texttt{K40},
+\texttt{P40}, \texttt{A30}, \texttt{A40} and \texttt{L40}, all real devices
+with substantial paper support. Conversely, an alias whose leading token is a
+vendor name is compiled case-insensitively, overriding the general rule that an
+all-uppercase pattern matches case-sensitively; without this, ``Nvidia L4''
+--- the ordinary spelling --- did not match, a directional recall loss that fell
+on precisely the vendor-qualified-only export-control parts (L4, A800, HGX~H20).
+
+Registry v0.4.0 contains $1{,}226$ entries: $1{,}217$ specific models and 9
 generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
-reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 568,
-AMD 546, Intel 43, Apple 18 and Google 11, then a long tail of eight or fewer
+reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 556,
+AMD 542, Intel 43, Apple 18 and Google 10, then a long tail of eight or fewer
 entries each (Huawei, Cambricon, Baidu, Amazon, Meta, Microsoft, MetaX, Biren,
 Iluvatar, \ldots). By market segment: consumer 929, workstation 136,
 datacenter 130, cloud 22. Every specific model is generated, as are the two
@@ -156,8 +195,8 @@ ordinary English. Hand-listing them had given NVIDIA three brands (GeForce,
 Quadro, Tesla) and AMD one (Radeon), while the same tables carry five AMD lines
 (Radeon, FirePro, FireGL, FireMV, Instinct) --- an asymmetry in candidate recall
 that favoured the vendor whose share the paper reports. The hand-maintained file
-now holds only the gate vocabularies, the generic terms and the NVIDIA
-architecture words, none of which any hardware table supplies.
+holds only the three gate vocabularies and the seven generic terms, neither of
+which any hardware table supplies; it names no device.
 Two classes are deliberately descoped and carry no model entry: embedded
 inference modules (the NVIDIA Jetson line) and wafer-scale/IPU parts (Cerebras,
 Graphcore), for which no source we parse publishes per-device specifications.
@@ -215,28 +254,38 @@ Stage 1 is a single CPU pass over each corpus emitting two products: an
 matched paragraph.
 
 Matching is three-layered. (i) An Aho--Corasick automaton over the lowercase
-literal cores of every alias in the extraction-time registry ($1{,}862$ for
-arXiv, $1{,}838$ for S2ORC) prefilters paragraphs; a hit must fall on
+literal cores of every alias in the extraction-time registry ($2{,}178$ in
+v0.4.0) prefilters paragraphs; a hit must fall on
 word boundaries in the haystack. The overwhelming majority of paragraphs stop
 here, which is what makes a full-corpus sweep affordable. (ii) For each
 surviving core, a confirming per-alias regular expression is applied, wrapped in
 hardware-safe boundaries \verb|(?<!\w)(?:...)s?(?!\w)| so that \texttt{V100}
 does not match \texttt{CV100x} or \texttt{V1000}; literal spaces compile to
 \verb|[\s-]*| so \texttt{RTX 3090}, \texttt{RTX-3090} and \texttt{RTX3090} are
-one alias. Case sensitivity is derived from the pattern: all-uppercase aliases
-(\texttt{GPU}, \texttt{V100}, \texttt{K80}) match case-sensitively,
-mixed-case ones (\texttt{Tesla V100}) case-insensitively. Overlapping matches
-are resolved by longest span, so \texttt{RTX 3090 Ti} beats \texttt{RTX 3090}
-without hand-authored lookaheads. (iii) Ambiguous aliases --- short codes whose
-strings collide with non-hardware usage (\texttt{K80} the antibody, \texttt{M2}
-the money supply, architecture names that are ordinary words) --- are marked
-tier~B ($236$ of the arXiv scan's $1{,}862$ aliases) and count only if a context term from the
-relevant gate vocabulary (\texttt{gpu}: 21 terms; \texttt{tpu}: 5;
-\texttt{apple}: 8) occurs within $\pm 250$ characters of the match, taken over
-the paragraph and its immediate neighbours. A paper-level rescue then un-gates
-tier~B matches in papers carrying at least one ungated model hit anywhere.
-Gating errs permissive by design: it exists to bound candidate volume, not to be
-precise, because precision is the LLM's job.
+one alias. Note that the separator is zero-or-more, so a closed-up
+\texttt{TeslaV100} matches by design. Case sensitivity is derived from the
+pattern: all-uppercase aliases (\texttt{GPU}, \texttt{V100}, \texttt{K80}) match
+case-sensitively and mixed-case ones (\texttt{Tesla V100}) case-insensitively,
+except that a vendor-led pattern is always case-insensitive (see the registry
+subsection). Overlapping matches are resolved by longest span, so
+\texttt{RTX 3090 Ti} beats \texttt{RTX 3090} without hand-authored lookaheads;
+two \emph{equal-length} spans from different entries are both retained and the
+disambiguation is left to the LLM and to canonicalization. (iii) Ambiguous
+aliases --- short codes whose strings collide with non-hardware usage
+(\texttt{K80} the antibody, \texttt{M2} the money supply, brand words that are
+ordinary English) --- are marked tier~B ($318$ of v0.4.0's $2{,}178$ aliases;
+$236$ of $1{,}862$ in the registry that scanned arXiv) and count only if a
+context term from the relevant gate vocabulary (\texttt{gpu}: 21 terms;
+\texttt{tpu}: 5; \texttt{apple}: 8) appears within the matched paragraph or the
+adjacent $250$ characters of either neighbouring paragraph. The gate is
+position-independent within that window rather than a $\pm250$-character
+neighbourhood of the match itself, which makes it permissive for a long
+paragraph; that is the intended direction. A paper-level rescue then un-gates
+tier~B matches in papers carrying at least one ungated model hit anywhere, and we
+report the share of tier-B used-mentions that survive only by rescue, together
+with a local-gate-only series as robustness. Gating errs permissive by design: it
+exists to bound candidate volume, not to be precise, because precision is the
+LLM's job.
 
 Each matched paragraph yields one candidate passage: the paragraph plus its
 immediate neighbours, capped at $2{,}500$ characters ($\approx 600$ tokens). The
@@ -244,7 +293,8 @@ window is centred on the matched span rather than taken from the head of the
 paragraph, so that the trigger is always inside the passage it triggered; every
 recorded match offset is verified to index the stored passage text. Passages per
 paper are capped at 20 for papers with at least one model-specific hit and 5 for
-generic-only papers (\texttt{GPU}/\texttt{CUDA} with no model named), with a
+generic-only papers (\texttt{GPU}/\texttt{CUDA} with no model named), truncating
+in document order, with a
 \texttt{passages\_truncated} flag preserving auditability; generic-only papers
 are retained rather than discarded because device counts and usage context are
 measurable without a model name. Auxiliary device-count and memory expressions
@@ -287,7 +337,12 @@ multi-GPU methods sentence, a passage mixing related-work TPUs with a
 used-in-this-work consumer GPU, an architecture studied as an object with a card
 used for validation, and the ``K80 cells were incubated with the antibody''
 negative) followed by a per-passage user message containing the section header,
-the registry hint surfaces, and the passage text. Prompt text is versioned
+the registry hint surfaces, and the passage text. Passing the hint surfaces
+imports the registry's attention into the prompt, which is why the worked
+examples include a negative and why the schema provides two explicit ways to
+reject; the \texttt{no\_mention} rates below ($5.5\%$ of S2ORC and $9.1\%$ of
+arXiv rows) are the direct evidence that the model does overrule the hint rather
+than ratify it. Prompt text is versioned
 (\texttt{PROMPT\_VERSION}) and stamped, with the registry version, model name
 and code commit, into every output row; output tables are namespaced by
 (registry version, prompt version, model), so variants can never be silently
@@ -462,6 +517,32 @@ tests, not by convention: the same prose fed through an S2ORC record and through
 the \LaTeX{} reader must yield identical matched models, candidate counts, and
 match offsets that index the stored passage text.
 
+\textbf{External validation of candidate generation.} The checks above are
+structural; they do not say whether the registry finds the hardware a human
+annotator would mark. We therefore run the matcher, unchanged, over
+% swap in the Related Work citation key for SH-NER when merging
+\textbf{SH-NER} (Anjum et al., 2025), an independently constructed corpus of
+manually annotated infrastructure entities in NLP papers, and treat its
+\texttt{Hardware-device} spans as ground truth. On the test split ($1{,}205$
+sentences, $174$ annotated spans, $60$ papers), $86.8\%$ of spans are recovered
+from local context alone and $89.1\%$ once the paper-level rescue is applied,
+with $82.8\%$ resolving to a specific model entry rather than to a generic or
+brand term; $96.8\%$ of sentences carrying an annotated span would generate a
+candidate passage. Every miss is classified rather than merely counted: $11$ of
+$19$ are CPUs, which SH-NER's \texttt{Hardware-device} class includes and our
+registry deliberately excludes; $5$ are rented cloud instance types
+(\texttt{p3.16xlarge}, \texttt{g4dn.xlarge}), which name a bundle rather than a
+device and whose resolution would require an instance-to-device table no source
+we parse publishes; and $3$ are a genuinely ambiguous ``Titan X'', a memory size,
+and a further CPU. Excluding the classes we do not claim to cover, span recall is
+$95.7\%$. This is a conservative reading of the pipeline: SH-NER labels single
+sentences, whereas the scan sees a paragraph and its neighbours. Precision is
+deliberately not reported against these labels, because the registry matches CPUs
+and FPGAs on purpose and forwards them to the LLM, so each such match would score
+as a false positive against a definition we do not share. Two registry gaps this
+exercise surfaced --- bare \texttt{1080Ti} and \texttt{RTX8000} --- were fixed
+before the final scan and pinned as test fixtures.
+
 \textbf{Pre-release mentions.} A paper cannot legitimately use a chip released
 after it was published, so the pre-release rate is a direct measurement-validity
 probe. It is $0.056\%$ of $271{,}380$ S2ORC used-model observations and
@@ -482,6 +563,14 @@ corpora.
 \textbf{Provenance.} Every output row carries the registry version, prompt
 version, model name and code commit that produced it, and every table is
 namespaced by that triple, so no analysis can mix extraction variants.
+Upstream of that, each Wikipedia source is pinned by revision id, so
+\texttt{release\_source} and \texttt{spec\_source} resolve to immutable
+permalinks rather than to pages that mutate; the generators additionally record
+the SHA-256 of every input they parsed, which makes a re-fetch verifiable without
+redistributing the vendor table. Because matching is decided by the hand file
+\emph{and} the generated files together, a digest over all of them is committed
+and tested, so no re-scrape can change an alias without changing the version that
+names the outputs.
 Recomputation is staged: registry specification changes re-run capacity and
 downstream tables only; registry alias changes additionally re-run
 canonicalization; only a change to the matcher or the prompt requires re-running
