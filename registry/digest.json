@@ -2,7 +2,7 @@
   "files": {
     "generated/epoch.yaml": "9eda1d0c65b9ffff069a4c5c97fd50849c03da19550e7d5383a0c8212ef5da14",
     "generated/wikipedia.yaml": "11485ab42e18cf68d732fabe37f8fe434308bc5edee7c4fbb1a9f7377974b4ca",
-    "hardware.yaml": "5b2408b8a6ecb95de84be631390bbd886e4d27d51afdc69a5de9e8fff4e884b7"
+    "hardware.yaml": "6ba84ac21e397b9be7cfd3f147bdfb7c028c317c6450bbe17b32d9af897a1ff6"
   },
   "version": "0.4.0"
 }
