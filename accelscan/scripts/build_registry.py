@@ -149,10 +149,10 @@ def fetch(name: str, url: str, use_cache: bool = True) -> str:
 def cache_digest(name: str) -> dict:
     """sha256 of the parsed page, and the revision it actually reports.
 
-    `registry/cache/` is gitignored (the Epoch export may not be redistributed),
-    so the digest is what makes the input verifiable from the committed artefact:
-    a re-fetch of the pinned permalink can be checked against it, and a mismatch
-    between `oldid` and `revision_id` means the cache predates the pin.
+    `registry/cache/` is committed, so the generator re-runs from a clean
+    checkout; the digest makes that self-checking. A re-fetch of the pinned
+    permalink can be compared against it, and a mismatch between `oldid` and
+    `revision_id` means the cache predates the pin.
     """
     path = CACHE_DIR / f'{name}.html'
     if not path.exists():

@@ -565,9 +565,10 @@ version, model name and code commit that produced it, and every table is
 namespaced by that triple, so no analysis can mix extraction variants.
 Upstream of that, each Wikipedia source is pinned by revision id, so
 \texttt{release\_source} and \texttt{spec\_source} resolve to immutable
-permalinks rather than to pages that mutate; the generators additionally record
-the SHA-256 of every input they parsed, which makes a re-fetch verifiable without
-redistributing the vendor table. Because matching is decided by the hand file
+permalinks rather than to pages that mutate. The parsed source snapshots
+themselves are archived with the code, and each generator records the SHA-256 of
+every input it read, so both generators re-run from a clean checkout and reproduce
+their emitted registry files exactly. Because matching is decided by the hand file
 \emph{and} the generated files together, a digest over all of them is committed
 and tested, so no re-scrape can change an alias without changing the version that
 names the outputs.
