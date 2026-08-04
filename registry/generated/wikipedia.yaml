@@ -1413,7 +1413,6 @@ models:
     FX (5xxx) series
   aliases:
   - GeForce FX 5800
-  - FX 5800
 - id: nvidia-geforce-fx-5800-ultra
   display: NVIDIA GeForce FX 5800 Ultra
   manufacturer: nvidia
@@ -1543,6 +1542,8 @@ models:
   aliases:
   - GeForce FX 5900 XT
   - FX 5900 XT
+  - pattern: 5900 XT
+    gate: gpu
 - id: nvidia-geforce-fx-5900-zt
   display: NVIDIA GeForce FX 5900 ZT
   manufacturer: nvidia
@@ -1599,6 +1600,8 @@ models:
     (9000 series, X1000 series)
   aliases:
   - Radeon 9600 XT
+  - pattern: 9600 XT
+    gate: gpu
 - id: amd-radeon-9800-xt
   display: AMD Radeon 9800 XT
   manufacturer: amd
@@ -1617,6 +1620,8 @@ models:
     (9000 series, X1000 series)
   aliases:
   - Radeon 9800 XT
+  - pattern: 9800 XT
+    gate: gpu
 - id: amd-radeon-9800-xxl
   display: AMD Radeon 9800 XXL
   manufacturer: amd
@@ -3327,6 +3332,7 @@ models:
     FX (x500) series
   aliases:
   - Quadro FX 2500M
+  - FX 2500M
 - id: amd-radeon-x1300
   display: AMD Radeon X1300
   manufacturer: amd
@@ -4104,6 +4110,7 @@ models:
     FX (x500) series
   aliases:
   - Quadro FX 350M
+  - FX 350M
 - id: nvidia-geforce-7900-gs-agp
   display: NVIDIA GeForce 7900 GS AGP
   manufacturer: nvidia
@@ -4158,6 +4165,7 @@ models:
     FX (x500) series
   aliases:
   - Quadro FX 1500M
+  - FX 1500M
 - id: nvidia-quadro-fx-560
   display: NVIDIA Quadro FX 560
   manufacturer: nvidia
@@ -4176,6 +4184,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 560
+  - FX 560
 - id: nvidia-quadro-fx-560m
   display: NVIDIA Quadro FX 560M
   manufacturer: nvidia
@@ -4194,6 +4203,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 560M
+  - FX 560M
 - id: amd-radeon-x1900-gt
   display: AMD Radeon X1900 GT
   manufacturer: amd
@@ -4884,6 +4894,7 @@ models:
     FX (x500) series
   aliases:
   - Quadro FX 3500M
+  - FX 3500M
 - id: nvidia-quadro-fx-4600-sdi2
   display: NVIDIA Quadro FX 4600 SDI2
   manufacturer: nvidia
@@ -4902,6 +4913,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 4600 SDI2
+  - FX 4600 SDI2
 - id: nvidia-quadro-fx-46002
   display: NVIDIA Quadro FX 46002
   manufacturer: nvidia
@@ -4920,6 +4932,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 46002
+  - FX 46002
 - id: nvidia-quadro-fx-56002
   display: NVIDIA Quadro FX 56002
   manufacturer: nvidia
@@ -4938,6 +4951,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 56002
+  - FX 56002
 - id: nvidia-geforce-7950-gt-agp
   display: NVIDIA GeForce 7950 GT AGP
   manufacturer: nvidia
@@ -5119,6 +5133,8 @@ models:
   aliases:
   - Radeon HD 2900 XT
   - HD 2900 XT
+  - pattern: 2900 XT
+    gate: gpu
 - id: amd-radeon-x1650-gt
   display: AMD Radeon X1650 GT
   manufacturer: amd
@@ -5195,6 +5211,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 360M
+  - FX 360M
 - id: nvidia-s870
   display: NVIDIA S870
   manufacturer: nvidia
@@ -5294,6 +5311,8 @@ models:
   aliases:
   - Radeon HD 2400 XT
   - HD 2400 XT
+  - pattern: 2400 XT
+    gate: gpu
 - id: amd-radeon-hd-2600-pro
   display: AMD Radeon HD 2600 PRO
   manufacturer: amd
@@ -5332,6 +5351,8 @@ models:
   aliases:
   - Radeon HD 2600 XT
   - HD 2600 XT
+  - pattern: 2600 XT
+    gate: gpu
 - id: nvidia-quadro-fx-1600m
   display: NVIDIA Quadro FX 1600M
   manufacturer: nvidia
@@ -5350,6 +5371,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 1600M
+  - FX 1600M
 - id: nvidia-quadro-fx-570m
   display: NVIDIA Quadro FX 570M
   manufacturer: nvidia
@@ -5368,6 +5390,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 570M
+  - FX 570M
 - id: amd-radeon-hd-2900-pro
   display: AMD Radeon HD 2900 PRO
   manufacturer: amd
@@ -5423,6 +5446,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 1700
+  - FX 1700
 - id: nvidia-quadro-fx-370
   display: NVIDIA Quadro FX 370
   manufacturer: nvidia
@@ -5441,6 +5465,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 370
+  - FX 370
 - id: nvidia-quadro-fx-470
   display: NVIDIA Quadro FX 470
   manufacturer: nvidia
@@ -5459,6 +5484,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 470
+  - FX 470
 - id: nvidia-quadro-fx-570
   display: NVIDIA Quadro FX 570
   manufacturer: nvidia
@@ -5477,6 +5503,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 570
+  - FX 570
 - id: nvidia-geforce-7050-nforce-620i
   display: NVIDIA GeForce 7050 + nForce 620i
   manufacturer: nvidia
@@ -5970,6 +5997,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 3700
+  - FX 3700
 - id: nvidia-quadro-vx-200
   display: NVIDIA Quadro VX 200
   manufacturer: nvidia
@@ -6078,6 +6106,7 @@ models:
     FX (x600) series
   aliases:
   - Quadro FX 3600M
+  - FX 3600M
 - id: nvidia-geforce-9800-gtx
   display: NVIDIA GeForce 9800 GTX
   manufacturer: nvidia
@@ -6189,6 +6218,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 4700X2
+  - FX 4700X2
 - id: nvidia-geforce-8100-nforce-720a
   display: NVIDIA GeForce 8100 + nForce 720a
   manufacturer: nvidia
@@ -6850,6 +6880,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 2700M
+  - FX 2700M
 - id: nvidia-quadro-fx-3700m
   display: NVIDIA Quadro FX 3700M
   manufacturer: nvidia
@@ -6868,6 +6899,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 3700M
+  - FX 3700M
 - id: nvidia-quadro-fx-370m
   display: NVIDIA Quadro FX 370M
   manufacturer: nvidia
@@ -6886,6 +6918,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 370M
+  - FX 370M
 - id: nvidia-quadro-fx-3800m
   display: NVIDIA Quadro FX 3800M
   manufacturer: nvidia
@@ -6904,6 +6937,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 3800M
+  - FX 3800M
 - id: nvidia-quadro-fx-770m
   display: NVIDIA Quadro FX 770M
   manufacturer: nvidia
@@ -6922,6 +6956,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 770M
+  - FX 770M
 - id: amd-firepro-3d-v3750
   display: AMD FirePro 3D V3750
   manufacturer: amd
@@ -7146,6 +7181,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 1700M
+  - FX 1700M
 - id: amd-radeon-hd-4570
   display: AMD Radeon HD 4570
   manufacturer: amd
@@ -7240,6 +7276,7 @@ models:
     FX (x700) series
   aliases:
   - Quadro FX 370 LP
+  - FX 370 LP
 - id: nvidia-quadro-fx-4800
   display: NVIDIA Quadro FX 4800
   manufacturer: nvidia
@@ -7258,6 +7295,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 4800
+  - FX 4800
 - id: nvidia-quadro-fx-5800
   display: NVIDIA Quadro FX 5800
   manufacturer: nvidia
@@ -7611,6 +7649,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 1800
+  - FX 1800
 - id: nvidia-quadro-fx-380
   display: NVIDIA Quadro FX 380
   manufacturer: nvidia
@@ -7629,6 +7668,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 380
+  - FX 380
 - id: nvidia-quadro-fx-3800
   display: NVIDIA Quadro FX 3800
   manufacturer: nvidia
@@ -7647,6 +7687,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 3800
+  - FX 3800
 - id: amd-radeon-hd-4770
   display: AMD Radeon HD 4770
   manufacturer: amd
@@ -7744,6 +7785,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 580
+  - FX 580
 - id: amd-radeon-hd-3410
   display: AMD Radeon HD 3410
   manufacturer: amd
@@ -7915,6 +7957,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 1800M
+  - FX 1800M
 - id: amd-firepro-3d-v8750
   display: AMD FirePro 3D V8750
   manufacturer: amd
@@ -8268,6 +8311,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 2800M
+  - FX 2800M
 - id: nvidia-quadro-fx-380-lp
   display: NVIDIA Quadro FX 380 LP
   manufacturer: nvidia
@@ -8286,6 +8330,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 380 LP
+  - FX 380 LP
 - id: amd-firepro-2460-multi-view
   display: AMD FirePro 2460 Multi-View
   manufacturer: amd
@@ -8377,6 +8422,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 380M
+  - FX 380M
 - id: nvidia-quadro-fx-880m
   display: NVIDIA Quadro FX 880M
   manufacturer: nvidia
@@ -8395,6 +8441,7 @@ models:
     FX (x800) series
   aliases:
   - Quadro FX 880M
+  - FX 880M
 - id: amd-radeon-hd-5450
   display: AMD Radeon HD 5450
   manufacturer: amd
@@ -9306,6 +9353,8 @@ models:
   aliases:
   - GeForce GTX 560 Ti
   - GTX 560 Ti
+  - pattern: 560 Ti
+    gate: gpu
 - id: nvidia-geforce-gtx-560-ti-x2
   display: NVIDIA GeForce GTX 560 Ti X2
   manufacturer: nvidia
@@ -9602,6 +9651,8 @@ models:
   aliases:
   - GeForce GTX 550 Ti
   - GTX 550 Ti
+  - pattern: 550 Ti
+    gate: gpu
 - id: nvidia-geforce-gtx-590
   display: NVIDIA GeForce GTX 590
   manufacturer: nvidia
@@ -11130,6 +11181,8 @@ models:
   aliases:
   - GeForce GTX 660 Ti
   - GTX 660 Ti
+  - pattern: 660 Ti
+    gate: gpu
 - id: nvidia-quadro-410
   display: NVIDIA Quadro 410
   manufacturer: nvidia
@@ -11226,6 +11279,8 @@ models:
   aliases:
   - GeForce GTX 650 Ti
   - GTX 650 Ti
+  - pattern: 650 Ti
+    gate: gpu
 - id: amd-firepro-s10000
   display: AMD FirePro S10000
   manufacturer: amd
@@ -11281,6 +11336,8 @@ models:
   aliases:
   - Radeon HD 7870 XT
   - HD 7870 XT
+  - pattern: 7870 XT
+    gate: gpu
 - id: intel-xeon-phi
   display: Intel Xeon Phi
   manufacturer: intel
@@ -12511,6 +12568,8 @@ models:
   aliases:
   - GeForce GTX 760 Ti
   - GTX 760 Ti
+  - pattern: 760 Ti
+    gate: gpu
 - id: nvidia-geforce-gtx-780-rev-2
   display: NVIDIA GeForce GTX 780 Rev. 2
   manufacturer: nvidia
@@ -12685,6 +12744,8 @@ models:
   aliases:
   - GeForce GTX 780 Ti
   - GTX 780 Ti
+  - pattern: 780 Ti
+    gate: gpu
 - id: amd-radeon-r5-220
   display: AMD Radeon R5 220
   manufacturer: amd
@@ -13043,6 +13104,8 @@ models:
   aliases:
   - GeForce GTX 750 Ti
   - GTX 750 Ti
+  - pattern: 750 Ti
+    gate: gpu
 - id: nvidia-geforce-gtx-titan-black
   display: NVIDIA GeForce GTX TITAN Black
   manufacturer: nvidia
@@ -14565,6 +14628,8 @@ models:
   aliases:
   - GeForce GTX 980 Ti
   - GTX 980 Ti
+  - pattern: 980 Ti
+    gate: gpu
 - id: nvidia-quadro-m4000
   display: NVIDIA Quadro M4000
   manufacturer: nvidia
@@ -16064,6 +16129,8 @@ models:
   aliases:
   - GeForce GTX 1050 Ti
   - GTX 1050 Ti
+  - pattern: 1050 Ti
+    gate: gpu
 - id: nvidia-quadro-gp100
   display: NVIDIA Quadro GP100
   manufacturer: nvidia
@@ -16335,6 +16402,8 @@ models:
   aliases:
   - GeForce GTX 1080 Ti
   - GTX 1080 Ti
+  - pattern: 1080 Ti
+    gate: gpu
 - id: amd-radeon-520
   display: AMD Radeon 520
   manufacturer: amd
@@ -17006,6 +17075,8 @@ models:
   aliases:
   - GeForce GTX 1070 Ti
   - GTX 1070 Ti
+  - pattern: 1070 Ti
+    gate: gpu
 - id: nvidia-titan-v
   display: NVIDIA Titan V
   manufacturer: nvidia
@@ -17268,6 +17339,7 @@ models:
     RTX x000 / Tx00 / Tx000 series
   aliases:
   - Quadro RTX 5000
+  - RTX 5000
 - id: nvidia-quadro-rtx-6000
   display: NVIDIA Quadro RTX 6000
   manufacturer: nvidia
@@ -17286,6 +17358,7 @@ models:
     RTX x000 / Tx00 / Tx000 series
   aliases:
   - Quadro RTX 6000
+  - RTX 6000
 - id: nvidia-quadro-rtx-8000
   display: NVIDIA Quadro RTX 8000
   manufacturer: nvidia
@@ -17304,6 +17377,7 @@ models:
     RTX x000 / Tx00 / Tx000 series
   aliases:
   - Quadro RTX 8000
+  - RTX 8000
 - id: nvidia-geforce-rtx-2080
   display: NVIDIA GeForce RTX 2080
   manufacturer: nvidia
@@ -17342,6 +17416,8 @@ models:
   aliases:
   - GeForce RTX 2080 Ti
   - RTX 2080 Ti
+  - pattern: 2080 Ti
+    gate: gpu
 - id: nvidia-geforce-gtx-1060-6-gb-gddr5x
   display: NVIDIA GeForce GTX 1060 6 GB GDDR5X
   manufacturer: nvidia
@@ -17495,6 +17571,7 @@ models:
     RTX x000 / Tx00 / Tx000 series
   aliases:
   - Quadro RTX 4000
+  - RTX 4000
 - id: nvidia-geforce-gtx-1070-gddr5x
   display: NVIDIA GeForce GTX 1070 GDDR5X
   manufacturer: nvidia
@@ -17646,6 +17723,8 @@ models:
   aliases:
   - GeForce GTX 1660 Ti
   - GTX 1660 Ti
+  - pattern: 1660 Ti
+    gate: gpu
 - id: amd-radeon-pro-570x
   display: AMD Radeon Pro 570X
   manufacturer: amd
@@ -17755,6 +17834,8 @@ models:
   aliases:
   - Radeon RX 560 XT
   - RX 560 XT
+  - pattern: 560 XT
+    gate: gpu
 - id: nvidia-geforce-gtx-1660
   display: NVIDIA GeForce GTX 1660
   manufacturer: nvidia
@@ -17907,6 +17988,8 @@ models:
   aliases:
   - GeForce RTX 2060 SUPER
   - RTX 2060 SUPER
+  - pattern: 2060 SUPER
+    gate: gpu
 - id: nvidia-geforce-rtx-2070-super
   display: NVIDIA GeForce RTX 2070 SUPER
   manufacturer: nvidia
@@ -17926,6 +18009,8 @@ models:
   aliases:
   - GeForce RTX 2070 SUPER
   - RTX 2070 SUPER
+  - pattern: 2070 SUPER
+    gate: gpu
   - GeForce RTX 2070 Super
   - RTX 2070 Super
 - id: nvidia-geforce-rtx-2080-super
@@ -17947,6 +18032,8 @@ models:
   aliases:
   - GeForce RTX 2080 SUPER
   - RTX 2080 SUPER
+  - pattern: 2080 SUPER
+    gate: gpu
   - GeForce RTX 2080 Super
   - RTX 2080 Super
 - id: amd-radeon-610
@@ -18099,6 +18186,8 @@ models:
   aliases:
   - Radeon RX 5300 XT
   - RX 5300 XT
+  - pattern: 5300 XT
+    gate: gpu
 - id: amd-radeon-rx-5500
   display: AMD Radeon RX 5500
   manufacturer: amd
@@ -18331,6 +18420,8 @@ models:
   aliases:
   - GeForce GTX 1650 Ti
   - GTX 1650 Ti
+  - pattern: 1650 Ti
+    gate: gpu
 - id: nvidia-a100
   display: NVIDIA A100
   manufacturer: nvidia
@@ -18682,6 +18773,8 @@ models:
   aliases:
   - Radeon RX 6900 XT
   - RX 6900 XT
+  - pattern: 6900 XT
+    gate: gpu
 - id: nvidia-geforce-rtx-3060-ti
   display: NVIDIA GeForce RTX 3060 Ti
   manufacturer: nvidia
@@ -18701,6 +18794,8 @@ models:
   aliases:
   - GeForce RTX 3060 Ti
   - RTX 3060 Ti
+  - pattern: 3060 Ti
+    gate: gpu
 - id: google-tpu-v4
   display: Google TPU v4
   manufacturer: google
@@ -18796,6 +18891,8 @@ models:
   aliases:
   - Radeon RX 6700 XT
   - RX 6700 XT
+  - pattern: 6700 XT
+    gate: gpu
 - id: nvidia-a10
   display: NVIDIA A10
   manufacturer: nvidia
@@ -19035,6 +19132,8 @@ models:
   aliases:
   - GeForce RTX 3070 Ti
   - RTX 3070 Ti
+  - pattern: 3070 Ti
+    gate: gpu
 - id: nvidia-geforce-rtx-3080-ti
   display: NVIDIA GeForce RTX 3080 Ti
   manufacturer: nvidia
@@ -19054,6 +19153,8 @@ models:
   aliases:
   - GeForce RTX 3080 Ti
   - RTX 3080 Ti
+  - pattern: 3080 Ti
+    gate: gpu
 - id: amd-radeon-pro-w6800x
   display: AMD Radeon Pro W6800X
   manufacturer: amd
@@ -19111,6 +19212,8 @@ models:
   aliases:
   - Radeon RX 6600 XT
   - RX 6600 XT
+  - pattern: 6600 XT
+    gate: gpu
 - id: nvidia-rtx-a2000
   display: NVIDIA RTX A2000
   manufacturer: nvidia
@@ -19351,6 +19454,8 @@ models:
   aliases:
   - Radeon RX 6500 XT
   - RX 6500 XT
+  - pattern: 6500 XT
+    gate: gpu
 - id: nvidia-geforce-rtx-2050
   display: NVIDIA GeForce RTX 2050
   manufacturer: nvidia
@@ -19508,6 +19613,8 @@ models:
   aliases:
   - GeForce RTX 3090 Ti
   - RTX 3090 Ti
+  - pattern: 3090 Ti
+    gate: gpu
 - id: nvidia-h100
   display: NVIDIA H100
   manufacturer: nvidia
@@ -19567,6 +19674,8 @@ models:
   aliases:
   - Radeon RX 6650 XT
   - RX 6650 XT
+  - pattern: 6650 XT
+    gate: gpu
 - id: amd-radeon-rx-6750-xt
   display: AMD Radeon RX 6750 XT
   manufacturer: amd
@@ -19586,6 +19695,8 @@ models:
   aliases:
   - Radeon RX 6750 XT
   - RX 6750 XT
+  - pattern: 6750 XT
+    gate: gpu
 - id: amd-radeon-rx-6950-xt
   display: AMD Radeon RX 6950 XT
   manufacturer: amd
@@ -19605,6 +19716,8 @@ models:
   aliases:
   - Radeon RX 6950 XT
   - RX 6950 XT
+  - pattern: 6950 XT
+    gate: gpu
 - id: apple-m2
   display: Apple M2
   manufacturer: apple
@@ -19898,6 +20011,8 @@ models:
   aliases:
   - Radeon RX 7900 XT
   - RX 7900 XT
+  - pattern: 7900 XT
+    gate: gpu
 - id: amd-radeon-rx-7900-xtx
   display: AMD Radeon RX 7900 XTX
   manufacturer: amd
@@ -19917,6 +20032,8 @@ models:
   aliases:
   - Radeon RX 7900 XTX
   - RX 7900 XTX
+  - pattern: 7900 XTX
+    gate: gpu
 - id: nvidia-rtx-6000-ada-generation
   display: NVIDIA RTX 6000 Ada Generation
   manufacturer: nvidia
@@ -20034,6 +20151,8 @@ models:
   aliases:
   - GeForce RTX 4070 Ti
   - RTX 4070 Ti
+  - pattern: 4070 Ti
+    gate: gpu
 - id: nvidia-h800
   display: NVIDIA H800
   manufacturer: nvidia
@@ -20169,6 +20288,8 @@ models:
   aliases:
   - GeForce RTX 4060 Ti
   - RTX 4060 Ti
+  - pattern: 4060 Ti
+    gate: gpu
 - id: apple-m2-ultra
   display: Apple M2 Ultra
   manufacturer: apple
@@ -20380,6 +20501,8 @@ models:
   aliases:
   - Radeon RX 7700 XT
   - RX 7700 XT
+  - pattern: 7700 XT
+    gate: gpu
 - id: amd-radeon-rx-7800-xt
   display: AMD Radeon RX 7800 XT
   manufacturer: amd
@@ -20399,6 +20522,8 @@ models:
   aliases:
   - Radeon RX 7800 XT
   - RX 7800 XT
+  - pattern: 7800 XT
+    gate: gpu
 - id: amd-radeon-rx-6750-gre
   display: AMD Radeon RX 6750 GRE
   manufacturer: amd
@@ -20644,6 +20769,8 @@ models:
   aliases:
   - Radeon RX 7600 XT
   - RX 7600 XT
+  - pattern: 7600 XT
+    gate: gpu
 - id: nvidia-geforce-rtx-4070-super
   display: NVIDIA GeForce RTX 4070 Super
   manufacturer: nvidia
@@ -21113,6 +21240,8 @@ models:
   aliases:
   - GeForce RTX 5070 Ti
   - RTX 5070 Ti
+  - pattern: 5070 Ti
+    gate: gpu
 - id: amd-radeon-rx-9070
   display: AMD Radeon RX 9070
   manufacturer: amd
@@ -21151,6 +21280,8 @@ models:
   aliases:
   - Radeon RX 9070 XT
   - RX 9070 XT
+  - pattern: 9070 XT
+    gate: gpu
 - id: apple-m3-ultra
   display: Apple M3 Ultra
   manufacturer: apple
@@ -21282,6 +21413,8 @@ models:
   aliases:
   - GeForce RTX 5060 Ti
   - RTX 5060 Ti
+  - pattern: 5060 Ti
+    gate: gpu
 - id: nvidia-geforce-rtx-5060-ti-16
   display: NVIDIA GeForce RTX 5060 Ti 16
   manufacturer: nvidia
@@ -21400,6 +21533,8 @@ models:
   aliases:
   - Radeon RX 9060 XT
   - RX 9060 XT
+  - pattern: 9060 XT
+    gate: gpu
 - id: amd-radeon-ai-pro-r9700
   display: AMD Radeon AI Pro R9700
   manufacturer: amd

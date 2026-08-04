@@ -113,6 +113,21 @@ cases:
   - text: "the A800 GPUs were used for pretraining"
     expect: [generic-gpu, nvidia-a800]
 
+  # ---- gaps SH-NER surfaced (accelscan/scripts/eval_shner.py) ----------
+  # A model number with a distinctive suffix needs no series prefix: '1080' alone
+  # is a resolution, '1080 Ti' is only ever a GPU. Both spellings were annotated
+  # hardware in SH-NER that v0.3.1 missed.
+  - text: "trained on a 1080Ti GPU"
+    expect: [generic-gpu, nvidia-geforce-gtx-1080-ti]
+  - text: "2080 Ti GPUs were used for all runs"
+    expect: [generic-gpu, nvidia-geforce-rtx-2080-ti]
+  - text: "we resized every frame to 1920 1080 before the GPU pipeline"
+    expect: [generic-gpu]      # a bare resolution still contributes nothing
+  # papers drop the workstation line name, so 'Quadro RTX 8000' must also match
+  # as 'RTX 8000'
+  - text: "an RTX 8000 was used for rendering"
+    expect: [nvidia-quadro-rtx-8000]
+
   # ---- gate behavior: bare code without local context fails ----------
   - text: "we used an A100 for training"
     expect: []      # rescued only by paper-level tier-A hit (tested in test_scan)

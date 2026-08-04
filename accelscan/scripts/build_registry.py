@@ -100,6 +100,7 @@ BRAND_TOKENS = {'amd', 'ati', 'nvidia', 'instinct'}
 SHORT_CODE = re.compile(r'^[A-Z]{1,2}I?\d{2,4}[A-Za-z]{0,2}$')
 DISTINCTIVE_PREFIX = re.compile(
     r'^(GTX|RTX|GTS?|RX|HD|R[579]|FX|MI|TITAN|Titan|Tesla|Quadro|Radeon|GeForce|Arc|Vega)\b')
+NUMBER_SUFFIX = re.compile(r'\b(\d{3,4})\s+(Ti|TI|SUPER|XT|XTX)$')
 AMD_ARCH = re.compile(r'(GCN|RDNA|CDNA|TeraScale|Vega)\s*(\d(?:\.\d)?)?', re.IGNORECASE)
 
 NVIDIA_SERIES_ARCH = [
@@ -267,7 +268,9 @@ def build_aliases(name: str, manufacturer: str, release: str,
         add(escape_name(name))
 
     tokens = name.split(' ')
-    if tokens[0] in ('GeForce', 'Radeon') and len(tokens) > 1:
+    # 'Quadro RTX 8000' -> 'RTX 8000': papers routinely drop the line name, and
+    # SH-NER's annotated 'RTX8000' spans were missed for want of this form.
+    if tokens[0] in ('GeForce', 'Radeon', 'Quadro') and len(tokens) > 1:
         stripped = ' '.join(tokens[1:])
         # TITAN names carry no digit, so the digit test alone left 'GTX TITAN X'
         # and 'GTX TITAN Black' reachable only by their full GeForce name
@@ -276,6 +279,15 @@ def build_aliases(name: str, manufacturer: str, release: str,
             add(escape_name(stripped))
         elif SHORT_CODE.match(stripped):
             add_bare(stripped)
+
+    # A model number carrying a distinctive suffix is unambiguous without its
+    # series prefix: '1080' alone is a video resolution, but '1080 Ti' is only ever
+    # a GPU, and '1080Ti'/'2080 Ti'/'5700 XT' are how papers usually write them.
+    # Measured on SH-NER: bare '1080Ti' was an annotated hardware span our
+    # registry missed for exactly this reason.
+    m = NUMBER_SUFFIX.search(name)
+    if m:
+        add(f'{m.group(1)} {m.group(2)}', gate='gpu')
 
     # gated bare code for the trailing token of workstation/prefixed names:
     # 'Quadro GV100' -> GV100, 'RTX A6000' -> A6000
@@ -884,6 +896,31 @@ def build_vendor_entries(entries: dict) -> None:
         }
 
 
+def drop_contested_aliases(entries: dict, stats: dict) -> None:
+    """Remove any pattern claimed by more than one entry.
+
+    Two entries claiming one span makes `normalize.canonicalize_one`'s tie-break
+    arbitrary -- the mention would be attributed by dict order. The Radeon Pro
+    5500 XT and the RX 5500 XT are different GPUs whose numbers collide, so a bare
+    '5500 XT' genuinely identifies neither and both keep their prefixed forms.
+    `alias_rules.claimed_elsewhere` applies the same principle at generation time
+    for bare codes; this catches the rest, including collisions across pages.
+    """
+    owners: dict[str, set[str]] = defaultdict(set)
+    for e in entries.values():
+        for a in e.get('aliases', []):
+            owners[a if isinstance(a, str) else a['pattern']].add(e['id'])
+    contested = {p for p, ids in owners.items() if len(ids) > 1}
+    if not contested:
+        return
+    for e in entries.values():
+        e['aliases'] = [a for a in e['aliases']
+                        if (a if isinstance(a, str) else a['pattern']) not in contested]
+    stats['contested_aliases'] = len(contested)
+    print(f'[build_registry] dropped {len(contested)} contested alias(es): '
+          f'{sorted(contested)[:10]}', file=sys.stderr)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-cache', action='store_true')
@@ -912,6 +949,7 @@ def main() -> None:
             raise SystemExit(f'EXTRA_MODEL_ALIASES targets {mid}, which the scrape '
                              f'no longer produces')
         entries[mid]['aliases'].extend(extra)
+    drop_contested_aliases(entries, stats)
     build_vendor_entries(entries)
     models = sorted(entries.values(), key=lambda m: (m['release'] or '', m['id']))
     out = {'sources': {k: {'url': permalink(v[1], v[2]), 'oldid': v[2],

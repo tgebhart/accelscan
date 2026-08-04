@@ -106,6 +106,15 @@ OUT_OF_SCOPE = {
         r'\b(Fermi|Kepler|Maxwell|Pascal|Volta|Turing|Ampere|Ada Lovelace|Hopper'
         r'|Blackwell|GCN|RDNA\d?|CDNA\d?|Graphics Core Next)\b'),
     'embedded-module': re.compile(r'jetson|tegra|\borin\b|xavier', re.IGNORECASE),
+    # A rented instance type names a bundle, not a device: 'p3.16xlarge' is 8
+    # V100s and 'g4dn.xlarge' is one T4, and resolving one would require a
+    # vendor-published instance->device-and-count table that none of our sources
+    # carries. Measured on SH-NER, where these are 5 of 174 annotated
+    # hardware spans, so the omission is bounded rather than unknown.
+    'cloud-instance': re.compile(
+        r'\b(([a-z]\d[a-z]{0,3})\.(nano|micro|small|medium|\d*x?large)'
+        r'|n1-|n2-|a2-|a3-|standard_n[cdv]|nc\d+ads?|nd\d+'
+        r'|colab|sagemaker|paperspace|runpod|lambda labs)', re.IGNORECASE),
     'wafer-scale-ipu': re.compile(r'cerebras|graphcore|\bIPU\b|\bWSE-?\d?\b|\bCS-[123]\b'),
     'fpga-xilinx': re.compile(r'xilinx|virtex|artix|kintex|spartan|zynq|alveo|zcu|vc707|ultrascale',
                               re.IGNORECASE),
@@ -113,6 +122,13 @@ OUT_OF_SCOPE = {
     'fpga-generic': re.compile(r'\bfpga\b', re.IGNORECASE),
     'cpu': re.compile(r'xeon|core i[3579]|ryzen|threadripper|epyc|\bcpu\b|arm cortex|cortex-[amr]',
                       re.IGNORECASE),
+    # A named machine is a facility, not a device: its node composition is
+    # published elsewhere and changes over the machine's life, so resolving one to
+    # a model would be an inference, not an extraction.
+    'named-system': re.compile(
+        r'\bsupercomput\w+\b|\b(Frontier|Summit|LUMI'
+        r'|Fugaku|JUWELS|Leonardo|Perlmutter|Polaris|Aurora|Sierra|Piz Daint'
+        r'|TSUBAME|Stampede|Bridges|Jean Zay|MareNostrum)\b', re.IGNORECASE),
     'sbc-embedded': re.compile(r'raspberry pi|arduino|beaglebone|myriad|coral|edge tpu',
                                re.IGNORECASE),
     'dsp-asic-other': re.compile(r'\bdsp\b|\basic\b|kirin|snapdragon|exynos|neural engine',
