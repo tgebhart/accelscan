@@ -59,6 +59,10 @@ def test_paper_level_gate_rescue(reg):
     s = scan_record(rec_anchored, reg, 's')
     assert len(s.candidates) == 2
     assert 'nvidia-a100' in s.candidates[1]['matched_models']
+    # the rescue's contribution has to be measurable after the fact: the anchor
+    # passage stands on its own, the bare one exists only because of the rescue
+    assert s.candidates[0]['gate_rescued'] is False
+    assert s.candidates[1]['gate_rescued'] is True
 
 
 def test_generic_only_cap(reg):
@@ -92,7 +96,7 @@ def test_shared_core_is_corpus_agnostic(reg):
     assert len(s2.candidates) == len(ax.candidates) > 0
     measured = ('para_idx', 'passage_text', 'section_header', 'matched_models',
                 'matched_surfaces', 'match_starts', 'match_ends', 'gated_only',
-                'model_specific')
+                'gate_rescued', 'model_specific')
     for a, b in zip(s2.candidates, ax.candidates):
         assert {k: a[k] for k in measured} == {k: b[k] for k in measured}
     for k in ('is_candidate', 'n_paragraphs', 'n_candidate_passages',

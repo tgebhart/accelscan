@@ -55,7 +55,8 @@ CANDIDATE_SCHEMA = {
     'para_idx': pl.Int32, 'passage_text': pl.Utf8, 'section_header': pl.Utf8,
     'matched_models': pl.List(pl.Utf8), 'matched_surfaces': pl.List(pl.Utf8),
     'match_starts': pl.List(pl.Int32), 'match_ends': pl.List(pl.Int32),
-    'gated_only': pl.Boolean, 'model_specific': pl.Boolean,
+    'gated_only': pl.Boolean, 'gate_rescued': pl.Boolean,
+    'model_specific': pl.Boolean,
 }
 
 
@@ -168,6 +169,11 @@ def scan_paragraphs(paras: list[Paragraph], reg: CompiledRegistry, *,
             'match_starts': [m.start + offset for m in ms],
             'match_ends': [m.end + offset for m in ms],
             'gated_only': all(m.gate_required for m in ms),
+            # this passage exists ONLY because of the paper-level rescue: every
+            # match needed a gate and none was satisfied in the local window.
+            # Recorded so the rescue's contribution is measurable after the fact
+            # (it is applied above, and was otherwise invisible in the output).
+            'gate_rescued': all(m.gate_required and not m.gate_ok for m in ms),
             'model_specific': any(m.kind != 'generic' for m in ms),
         })
     inv['n_candidate_passages'] = len(scan.candidates)

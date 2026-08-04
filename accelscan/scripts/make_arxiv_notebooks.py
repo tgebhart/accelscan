@@ -108,6 +108,12 @@ if os.path.basename(os.getcwd()) == 'notebooks':
         # the wrong corpus' table and only fails later, on the missing paper_id column
         ("mentions_glob(MODEL_TAG, PROMPT_VERSION)",
          "mentions_glob(MODEL_TAG, PROMPT_VERSION, corpus=c)", 'optional'),
+        # stored candidate passages are read by the CUDA lock-in proxy (manufacturer)
+        # and the tier-B rescue share (trends); for arXiv they live under
+        # accelscan/arxiv/candidates/. candidates_root already ends in '/' --
+        # re-adding one lists nothing at all.
+        ("prefix = f'{OUT_PREFIX}/candidates/'", "prefix = candidates_root(c)",
+         'optional'),
         # OPTIONAL: a notebook-specific rule above may already have consumed this
         ("""f's3://{BUCKET}/{OUT_PREFIX}/analytic/{reg.version}/{PROMPT_VERSION}/{MODEL_TAG}'""",
          "s3_uri(analytic_base(c, reg.version, PROMPT_VERSION, MODEL_TAG))", 'optional'),
@@ -134,12 +140,6 @@ if os.path.basename(os.getcwd()) == 'notebooks':
          "         .select(KEY, 'field')"),
         ("""            f's3://{BUCKET}/{OUT_PREFIX}/precision/0.1.0/paper_precision.parquet',""",
          "            s3_uri(precision_key(c, '0.1.0')),"),
-    ],
-    'manufacturer': [
-        # the CUDA lock-in proxy scans stored candidate passages, which for arXiv
-        # live under accelscan/arxiv/candidates/
-        # candidates_root already ends in '/'; re-adding one lists nothing at all
-        ("prefix = f'{OUT_PREFIX}/candidates/'", "prefix = candidates_root(c)"),
     ],
     'gpu_usage': [
         ("""    return (f's3://{BUCKET}/{OUT_PREFIX}/mentions/{reg.version}'
