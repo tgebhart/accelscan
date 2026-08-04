@@ -24,4 +24,11 @@ mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR"
 module load cuda/12.0
 source activate accelscan
 
-python -m accelscan.infer --corpus arxiv --shard-index $SLURM_ARRAY_TASK_ID --model Qwen/Qwen3-14B
+# Pin the registry version instead of discovering it: with a previous extraction's
+# passages/ still present, discovery refuses to guess between versions (by design --
+# picking the highest silently split a mentions table once). Read from the registry
+# rather than hardcoded, so it follows a version bump.
+REGISTRY_VERSION=$(python -c 'from accelscan.registry import load_registry; print(load_registry().version)')
+echo "registry version: $REGISTRY_VERSION"
+
+python -m accelscan.infer --corpus arxiv --shard-index $SLURM_ARRAY_TASK_ID --registry-version $REGISTRY_VERSION --model Qwen/Qwen3-14B
