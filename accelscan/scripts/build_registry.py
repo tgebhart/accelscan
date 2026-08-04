@@ -33,6 +33,7 @@ Usage: python -m accelscan.scripts.build_registry [--no-cache]
 
 import argparse
 import datetime
+import hashlib
 import io
 import re
 import sys
@@ -44,19 +45,32 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 
+from accelscan.scripts.alias_rules import bare_code_aliases, vendor_qualified_case
+
 CACHE_DIR = Path('registry/cache')
 OUT_PATH = Path('registry/generated/wikipedia.yaml')
 UA = {'User-Agent': 'accelscan-registry-builder/0.1 (research; contact tom@amerton.org)'}
 
+# (manufacturer, article URL, oldid). The oldid pins the exact Wikipedia
+# revision the committed registry was built from: these tables mutate, and
+# without a pinned revision neither `release_source` nor `spec_source` points at
+# anything immutable and a re-run cannot be expected to reproduce the artefact.
+# Each id was read out of the corresponding cached page's `wgRevisionId`, so it is
+# the revision actually parsed, not the current one. `fetch` requests the
+# permalink, so a clean checkout with no cache rebuilds the same tables.
 SOURCES = {
-    'nvidia': ('nvidia', 'https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units'),
-    'amd_instinct': ('amd', 'https://en.wikipedia.org/wiki/AMD_Instinct'),
-    'amd': ('amd', 'https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units'),
-    'tpu': ('google', 'https://en.wikipedia.org/wiki/Tensor_Processing_Unit'),
-    'apple': ('apple', 'https://en.wikipedia.org/wiki/Apple_silicon'),
-    'xeon_phi': ('intel', 'https://en.wikipedia.org/wiki/Xeon_Phi'),
-    'intel_arc': ('intel', 'https://en.wikipedia.org/wiki/Intel_Arc'),
+    'nvidia': ('nvidia', 'https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units', 1363236497),
+    'amd_instinct': ('amd', 'https://en.wikipedia.org/wiki/AMD_Instinct', 1361556227),
+    'amd': ('amd', 'https://en.wikipedia.org/wiki/List_of_AMD_graphics_processing_units', 1356898165),
+    'tpu': ('google', 'https://en.wikipedia.org/wiki/Tensor_Processing_Unit', 1360833288),
+    'apple': ('apple', 'https://en.wikipedia.org/wiki/Apple_silicon', 1367137250),
+    'xeon_phi': ('intel', 'https://en.wikipedia.org/wiki/Xeon_Phi', 1361730508),
+    'intel_arc': ('intel', 'https://en.wikipedia.org/wiki/Intel_Arc', 1356924633),
 }
+
+
+def permalink(url: str, oldid: int | None) -> str:
+    return f'{url}?oldid={oldid}' if oldid else url
 
 SKIP_HEADING = re.compile(
     r'Mobility|\bGo\b|\dM\b|M series|MX series|IGP|NVS|Console|GRID|Chipset'
@@ -131,6 +145,27 @@ def fetch(name: str, url: str, use_cache: bool = True) -> str:
     return html
 
 
+def cache_digest(name: str) -> dict:
+    """sha256 of the parsed page, and the revision it actually reports.
+
+    `registry/cache/` is gitignored (the Epoch export may not be redistributed),
+    so the digest is what makes the input verifiable from the committed artefact:
+    a re-fetch of the pinned permalink can be checked against it, and a mismatch
+    between `oldid` and `revision_id` means the cache predates the pin.
+    """
+    path = CACHE_DIR / f'{name}.html'
+    if not path.exists():
+        return {}
+    raw = path.read_bytes()
+    m = re.search(rb'"wgRevisionId":(\d+)', raw)
+    return {'sha256': hashlib.sha256(raw).hexdigest(),
+            'bytes': len(raw),
+            'revision_id': int(m.group(1)) if m else None,
+            # when this page was actually fetched, not when the build last ran
+            'retrieved': datetime.date.fromtimestamp(
+                path.stat().st_mtime).isoformat()}
+
+
 def parse_release(cell: str) -> str | None:
     cell = FOOTNOTE.sub(' ', str(cell))
     m = DATE_FULL.search(cell) or DATE_MONTH.search(cell)
@@ -188,15 +223,33 @@ def escape_name(name: str) -> str:
     return ' '.join(re.escape(tok) for tok in name.split(' '))
 
 
-def build_aliases(name: str, manufacturer: str, release: str) -> list:
+def build_aliases(name: str, manufacturer: str, release: str,
+                  entries: dict | None = None) -> list:
     aliases: list = []
     seen: set[str] = set()
+    entries = entries if entries is not None else {}
 
     def add(pattern: str, gate: str | None = None):
         if pattern in seen:
             return
         seen.add(pattern)
-        aliases.append({'pattern': pattern, 'gate': gate} if gate else pattern)
+        case = vendor_qualified_case(pattern)
+        if gate is None and case is None:
+            aliases.append(pattern)
+            return
+        alias = {'pattern': pattern}
+        if gate:
+            alias['gate'] = gate
+        if case:
+            alias['case'] = case
+        aliases.append(alias)
+
+    def add_bare(code: str):
+        # the one bare-code rule, shared with build_epoch_registry
+        for a in bare_code_aliases(code, entries):
+            if a['pattern'] not in seen:
+                seen.add(a['pattern'])
+                aliases.append(a)
 
     if SHORT_CODE.match(name):
         # bare data-center style code: A100, K80, MI250X ...
@@ -207,7 +260,7 @@ def build_aliases(name: str, manufacturer: str, release: str) -> list:
         elif manufacturer == 'amd':
             add(f'Instinct {escape_name(name)}')
             add(f'AMD {escape_name(name)}')
-        add(escape_name(name), gate='gpu')
+        add_bare(name)
         return aliases
 
     if len(name) >= 6 and (re.search(r'\d', name) or 'titan' in name.lower()):
@@ -222,12 +275,12 @@ def build_aliases(name: str, manufacturer: str, release: str) -> list:
                                                    or 'titan' in stripped.lower()):
             add(escape_name(stripped))
         elif SHORT_CODE.match(stripped):
-            add(escape_name(stripped), gate='gpu')
+            add_bare(stripped)
 
     # gated bare code for the trailing token of workstation/prefixed names:
     # 'Quadro GV100' -> GV100, 'RTX A6000' -> A6000
     if len(tokens) > 1 and DISTINCTIVE_PREFIX.match(name) and SHORT_CODE.match(tokens[-1]):
-        add(re.escape(tokens[-1]), gate='gpu')
+        add_bare(tokens[-1])
 
     if not aliases:
         add(escape_name(name), gate='gpu')
@@ -412,7 +465,7 @@ def parse_gpu_page(html: str, manufacturer: str, url: str, entries: dict, stats:
                     'release_source': url,
                     **{f: specs.get(f) for f in SPEC_FIELDS},
                     'spec_source': spec_src if specs else None,
-                    'aliases': build_aliases(name, manufacturer, release),
+                    'aliases': build_aliases(name, manufacturer, release, entries),
                 }
             else:
                 prev['release'] = merge_release(prev['release'], release)
@@ -424,7 +477,7 @@ def parse_gpu_page(html: str, manufacturer: str, url: str, entries: dict, stats:
                 if specs and not prev.get('spec_source'):
                     prev['spec_source'] = spec_src
                 have = {yaml.safe_dump(a) for a in prev['aliases']}
-                for a in build_aliases(name, manufacturer, release):
+                for a in build_aliases(name, manufacturer, release, entries):
                     if yaml.safe_dump(a) not in have:
                         prev['aliases'].append(a)
 
@@ -499,21 +552,6 @@ FAMILY_ENTRIES = {
 }
 
 
-def bare_code_alias(code: str, entries: dict) -> list:
-    """Gated bare-code alias, unless another vendor already claims that code.
-
-    Intel's Arc Pro A40 and NVIDIA's A40 are different GPUs with the same short
-    code, and the NVIDIA part carries ~2,600 papers. Two entries claiming one
-    span makes `canonicalize_one`'s tie-break arbitrary, so the newer, rarer
-    claimant gets no bare alias and stays reachable as 'Arc Pro A40'.
-    """
-    for e in entries.values():
-        for a in e.get('aliases', []):
-            if (a if isinstance(a, str) else a['pattern']) == re.escape(code):
-                return []
-    return [{'pattern': re.escape(code), 'gate': 'gpu'}]
-
-
 def _family_entry(mid: str, release: str, url: str) -> dict:
     return {'id': mid, **FAMILY_ENTRIES[mid], 'release': release,
             'release_source': url, 'kind': 'model',
@@ -574,7 +612,7 @@ def parse_xeon_phi_page(html: str, url: str, entries: dict, stats: dict) -> None
                     'spec_source': f'{url}#{heading or section}',
                     # '7120P' is distinctive but numeric; gate it like other bare codes
                     'aliases': [f'Xeon Phi {code}',
-                                *bare_code_alias(code, entries)],
+                                *bare_code_aliases(code, entries)],
                 }
             else:
                 prev['release'] = min(prev['release'], release)
@@ -651,7 +689,7 @@ def parse_intel_arc_page(html: str, url: str, entries: dict, stats: dict) -> Non
                     # 'Arc A770', and longest-span resolution would hand the
                     # mention to the family entry.
                     'aliases': [f'Intel {line} {code}', f'{line} {code}',
-                                *bare_code_alias(code, entries)],
+                                *bare_code_aliases(code, entries)],
                 }
             else:
                 prev['release'] = min(prev['release'], release)
@@ -855,7 +893,8 @@ def main() -> None:
     entries: dict[str, dict] = {}
     stats = {'rows': 0, 'no_date': 0, 'pre2000': 0, 'skipped_tables': 0,
              'skipped_models': 0, 'unparseable_tables': 0}
-    for name, (manufacturer, url) in SOURCES.items():
+    for name, (manufacturer, article, oldid) in SOURCES.items():
+        url = permalink(article, oldid)
         html = fetch(name, url, use_cache=not args.no_cache)
         if name == 'tpu':
             parse_tpu_page(html, url, entries)
@@ -875,8 +914,10 @@ def main() -> None:
         entries[mid]['aliases'].extend(extra)
     build_vendor_entries(entries)
     models = sorted(entries.values(), key=lambda m: (m['release'] or '', m['id']))
-    out = {'sources': {k: v[1] for k, v in SOURCES.items()},
-           'retrieved': datetime.date.today().isoformat(),
+    out = {'sources': {k: {'url': permalink(v[1], v[2]), 'oldid': v[2],
+                           **cache_digest(k)}
+                       for k, v in SOURCES.items()},
+           'built': datetime.date.today().isoformat(),
            'models': models}
     OUT_PATH.write_text(yaml.safe_dump(out, sort_keys=False, allow_unicode=True, width=100))
     print(f'{len(models)} models -> {OUT_PATH} {stats}', file=sys.stderr)

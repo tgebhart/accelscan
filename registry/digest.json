@@ -1,0 +1,8 @@
+{
+  "files": {
+    "generated/epoch.yaml": "9eda1d0c65b9ffff069a4c5c97fd50849c03da19550e7d5383a0c8212ef5da14",
+    "generated/wikipedia.yaml": "6e1d93621c1866be71afe17e9a7bdfd2498e2162c4b4d8dd42a329987dcebb99",
+    "hardware.yaml": "5b2408b8a6ecb95de84be631390bbd886e4d27d51afdc69a5de9e8fff4e884b7"
+  },
+  "version": "0.4.0"
+}

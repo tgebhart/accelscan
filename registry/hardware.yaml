@@ -36,7 +36,13 @@
 #     a tier-A model hit elsewhere.
 #   - kind: model (default) | architecture | generic.
 
-version: "0.3.1"
+# v0.4.0 (matching changed -> re-scan required): one bare-code rule now serves
+# both generators (accelscan/scripts/alias_rules.py) in place of the two they had,
+# and a vendor-qualified alias is case-insensitive, so "Nvidia L4" matches where
+# only "NVIDIA L4" did. Net alias delta: 161 patterns gained case-insensitivity,
+# 8 all-digit Xeon Phi codes and bare 'A10' lost their bare form, bare 'L20'
+# gained one.
+version: "0.4.0"
 
 context_terms:
   gpu: ["GPU", "GPUs", "GPGPU", "graphics card", "graphics cards", "video card",

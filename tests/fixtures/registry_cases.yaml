@@ -85,6 +85,34 @@ cases:
   - text: "an RDNA2 GPU from AMD"
     expect: [generic-gpu, vendor-amd]    # 'RDNA2' itself contributes nothing
 
+  # ---- one bare-code rule, both generators (v0.4.0) -------------------
+  # A vendor-qualified alias is case-insensitive, so the ordinary spelling of the
+  # vendor matches. Before v0.4.0 these compiled case-sensitive (every letter is
+  # uppercase), which silently cost recall on export-control SKUs reported in §8.
+  - text: "inference ran on a Nvidia L4 GPU"
+    expect: [generic-gpu, nvidia-l4]
+  - text: "trained on 8 Tesla T4 GPUs"
+    expect: [generic-gpu, nvidia-tesla-t4]
+  # ...but the bare code is denied for a named non-hardware meaning, in either
+  # generator's output (alias_rules.BARE_CODE_DENY)
+  - text: "we used a T4 for training"
+    expect: []
+  - text: "thyroid T4 levels were measured in serum"
+    expect: []
+  - text: "we ran on 8 A10 GPUs"
+    expect: [generic-gpu]        # A10: the aircraft and the cell line
+  - text: "an NVIDIA A10 GPU"
+    expect: [generic-gpu, nvidia-a10]
+  # an all-digit code is a quantity in prose, so it is never emitted bare; the
+  # product line still reaches it
+  - text: "four Xeon Phi 7250 processors per node"
+    expect: [intel-xeon-phi-7250]
+  - text: "experiments on Ascend 910 NPUs"
+    expect: [generic-npu, huawei-ascend-910]
+  # 4+ char codes keep their gated bare form (the rule is one rule, not a length)
+  - text: "the A800 GPUs were used for pretraining"
+    expect: [generic-gpu, nvidia-a800]
+
   # ---- gate behavior: bare code without local context fails ----------
   - text: "we used an A100 for training"
     expect: []      # rescued only by paper-level tier-A hit (tested in test_scan)

@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=100gb
 #SBATCH --gres=gpu:1
-#SBATCH --array=1-35%16
+##SBATCH --array=1-35%16
 #SBATCH --requeue
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=gebhart@umn.edu

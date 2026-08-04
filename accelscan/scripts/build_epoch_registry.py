@@ -30,6 +30,7 @@ reproduce the values this registry scrapes from Wikipedia for the same parts.
 """
 
 import argparse
+import hashlib
 import re
 import sys
 import tempfile
@@ -39,6 +40,7 @@ import polars as pl
 import yaml
 
 from accelscan.registry import load_registry
+from accelscan.scripts.alias_rules import bare_code_aliases, vendor_qualified_case
 from accelscan.scripts.build_registry import slugify
 
 CSV_PATH = Path('registry/cache/ml_hardware.csv')
@@ -192,7 +194,6 @@ def strip_manufacturer(name: str, mfr: str) -> str:
     return ' '.join(tokens) or name
 
 
-MIN_BARE_CODE = 4
 VENDOR_DISPLAY = {'nvidia': 'NVIDIA', 'amd': 'AMD', 'google': 'Google',
                   'intel': 'Intel', 'huawei': 'Huawei', 'amazon': 'AWS',
                   'microsoft': 'Microsoft', 'meta': 'Meta', 'cambricon': 'Cambricon',
@@ -216,34 +217,44 @@ EXTRA_ALIASES = {
 }
 
 
-def build_aliases(name: str, mfr: str, extra: list[str]) -> list:
+def build_aliases(name: str, mfr: str, extra: list[str],
+                  entries: dict | None = None) -> list:
     """Full name, vendor-stripped form, vendor+code form, and a gated bare code.
 
-    The bare-code rule is the ambiguity screen the plan requires, applied here
-    because this table is dense in two- and three-character codes. Codes shorter
-    than four characters are NOT emitted bare at any tier: `L2` is L2
-    regularization and L2 cache, `L4` and `T4` are vertebrae, `T4` is also
-    thyroxine and a bacteriophage, `H20` is water. In a corpus one third medicine
-    those would swamp the true positives, and the context gate does not save them
-    -- "L2 regularization ... on a GPU" satisfies it in one sentence. Such models
-    are reachable only through a vendor-qualified form ("NVIDIA L4", "Tesla T4").
+    The bare-code decision is `alias_rules.bare_code_aliases`, the single rule
+    shared with `build_registry.py`: gated bare alias unless the code carries a
+    named non-hardware meaning (`T4`, `L4`, `H20`, ...) or another entry already
+    claims that string. Denied codes stay reachable through a vendor-qualified
+    form ("NVIDIA L4", "Tesla T4").
     """
     out: list = []
     seen: set[str] = set()
+    entries = entries if entries is not None else {}
 
     def add(pattern: str, gate: str | None = None):
         pattern = ' '.join(re.escape(t) for t in pattern.split())
         if pattern in seen or not pattern:
             return
         seen.add(pattern)
-        out.append({'pattern': pattern, 'gate': gate} if gate else pattern)
+        case = vendor_qualified_case(pattern)
+        if gate is None and case is None:
+            out.append(pattern)
+            return
+        alias = {'pattern': pattern}
+        if gate:
+            alias['gate'] = gate
+        if case:
+            alias['case'] = case
+        out.append(alias)
 
     def add_form(text: str):
         if len(text.split()) > 1 or len(text) >= 6:
             add(text)                       # multi-word or long: distinctive
-        elif len(text) >= MIN_BARE_CODE:
-            add(text, gate='gpu')           # 'A800', 'GB200': gated
-        # shorter: not emitted bare at all
+            return
+        for a in bare_code_aliases(text, entries):
+            if a['pattern'] not in seen:
+                seen.add(a['pattern'])
+                out.append(a)
 
     add(name)
     vendor = VENDOR_DISPLAY.get(mfr)
@@ -274,6 +285,11 @@ def entry_id(name: str, mfr: str) -> str:
 def build(csv_path: Path = CSV_PATH) -> tuple[list[dict], dict]:
     reg = base_registry()
     taken = set(reg.models)
+    # alias view of the existing registry, so the shared bare-code rule can see
+    # a string another entry already claims (see alias_rules.claimed_elsewhere)
+    claimed: dict[str, dict] = {}
+    for a in reg.aliases:
+        claimed.setdefault(a.model_id, {'aliases': []})['aliases'].append(a.pattern)
     df = pl.read_csv(csv_path)
     stats = {'rows': df.height, 'covered': 0, 'no_date': 0, 'multi_variant': 0,
              'id_collision': 0, 'merged_boards': 0, 'emitted': 0}
@@ -324,7 +340,8 @@ def build(csv_path: Path = CSV_PATH) -> tuple[list[dict], dict]:
                 'release': release, 'release_source': SOURCE_URL,
                 **{f: None for f, _, _ in SPECS},
                 'spec_source': SOURCE_URL,
-                'aliases': build_aliases(name, mfr, extra) + EXTRA_ALIASES.get(mid, []),
+                'aliases': build_aliases(name, mfr, extra, {**claimed, **entries})
+                           + EXTRA_ALIASES.get(mid, []),
                 'notes': None,
             }
             stats['emitted'] += 1
@@ -388,13 +405,21 @@ def main() -> None:
     ap.add_argument('--csv', default=str(CSV_PATH))
     args = ap.parse_args()
 
-    models, stats = build(Path(args.csv))
+    csv_path = Path(args.csv)
+    models, stats = build(csv_path)
     if not models:
         raise SystemExit('no models emitted -- refusing to write an empty registry '
                          'file (is the exclusion registry picking up epoch.yaml?)')
     OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # The CSV itself is gitignored, so the committed artefact carries its digest:
+    # that is what lets a re-export be checked against the input this file was
+    # built from without redistributing Epoch's table.
+    raw = csv_path.read_bytes()
     OUT_PATH.write_text(yaml.safe_dump(
-        {'source': SOURCE_URL, 'source_file': str(CSV_PATH), 'models': models},
+        {'source': SOURCE_URL, 'source_file': str(csv_path),
+         'source_sha256': hashlib.sha256(raw).hexdigest(),
+         'source_bytes': len(raw), 'source_rows': stats['rows'],
+         'models': models},
         sort_keys=False, allow_unicode=True, width=100))
     print(f'{len(models)} models -> {OUT_PATH} {stats}', file=sys.stderr)
     for f in ('fp32_gflops', 'fp64_gflops', 'fp16_tensor_gflops', 'vram_gb', 'tdp_w'):

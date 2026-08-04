@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=100gb
 #SBATCH --gres=gpu:1
-#SBATCH --array=1-3%16
+#SBATCH --array=7-9%16
 #SBATCH --requeue
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=gebhart@umn.edu
@@ -16,13 +16,6 @@ export PYTHONUNBUFFERED=TRUE
 export OMP_NUM_THREADS=4
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
-# Per-task torch.compile/Triton cache on node-local disk. .env points
-# VLLM_CACHE_ROOT at /projects (shared, parallel FS); with %16 concurrency and a
-# COLD cache every task compiles at once and races to publish the same artifact,
-# which fails as "__triton_launcher...so: cannot open shared object file" -- the
-# directory is visible before the .so is. Cost of isolating it is one ~25s
-# recompile per task against a 4h job. HF_HOME stays shared: the 27GB of weights
-# are read-only after the first download and must not be refetched per task.
 export VLLM_CACHE_ROOT=${TMPDIR:-/tmp}/vllm_cache_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}
 export TRITON_CACHE_DIR=$VLLM_CACHE_ROOT/triton
 export TORCHINDUCTOR_CACHE_DIR=$VLLM_CACHE_ROOT/inductor

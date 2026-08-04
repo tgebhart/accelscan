@@ -1,5 +1,8 @@
 source: https://epoch.ai/data/machine-learning-hardware
 source_file: registry/cache/ml_hardware.csv
+source_sha256: 7095c56f8cce2056ba1cafbb46f97fb4aa1bb79a48b517c2026be88a43f43479
+source_bytes: 97263
+source_rows: 176
 models:
 - id: nvidia-tesla-p4
   display: NVIDIA Tesla P4
@@ -16,9 +19,12 @@ models:
   tdp_w: 75.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA Tesla P4
-  - Tesla P4
-  - NVIDIA P4
+  - pattern: NVIDIA Tesla P4
+    case: insensitive
+  - pattern: Tesla P4
+    case: insensitive
+  - pattern: NVIDIA P4
+    case: insensitive
   notes: null
 - id: nudt-mt-2000
   display: MT-2000
@@ -36,7 +42,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - MT\-2000
-  - NUDT MT\-2000
+  - pattern: NUDT MT\-2000
+    case: insensitive
   notes: null
 - id: pezy-sc2
   display: PEZY-SC2
@@ -54,7 +61,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - PEZY\-SC2
-  - PEZY PEZY\-SC2
+  - pattern: PEZY PEZY\-SC2
+    case: insensitive
   notes: null
 - id: nvidia-tesla-t4
   display: NVIDIA Tesla T4
@@ -71,9 +79,12 @@ models:
   tdp_w: 70.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA Tesla T4
-  - Tesla T4
-  - NVIDIA T4
+  - pattern: NVIDIA Tesla T4
+    case: insensitive
+  - pattern: Tesla T4
+    case: insensitive
+  - pattern: NVIDIA T4
+    case: insensitive
   notes: null
 - id: huawei-ascend-310
   display: Huawei Ascend 310
@@ -90,9 +101,11 @@ models:
   tdp_w: 8.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 310
+  - pattern: Huawei Ascend 310
+    case: insensitive
   - Ascend 310
-  - Huawei 310
+  - pattern: Huawei 310
+    case: insensitive
   notes: null
 - id: baidu-kunlun-i
   display: Baidu Kunlun I
@@ -109,7 +122,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun I
+  - pattern: Baidu Kunlun I
+    case: insensitive
   - Kunlun I
   notes: null
 - id: cambricon-mlu270-f4
@@ -127,7 +141,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU270\-F4
+  - pattern: Cambricon MLU270\-F4
+    case: insensitive
   - MLU270\-F4
   notes: null
 - id: cambricon-mlu270-s4
@@ -145,7 +160,8 @@ models:
   tdp_w: 70.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU270\-S4
+  - pattern: Cambricon MLU270\-S4
+    case: insensitive
   - MLU270\-S4
   notes: null
 - id: intel-habana-gaudi-hl-205
@@ -163,9 +179,12 @@ models:
   tdp_w: 300.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Habana GAUDI HL\-205
-  - Habana GAUDI HL\-205
-  - Intel GAUDI HL\-205
+  - pattern: Intel Habana GAUDI HL\-205
+    case: insensitive
+  - pattern: Habana GAUDI HL\-205
+    case: insensitive
+  - pattern: Intel GAUDI HL\-205
+    case: insensitive
   - GAUDI HL\-205
   - Habana Gaudi
   - pattern: Gaudi
@@ -187,9 +206,11 @@ models:
   tdp_w: 310.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910
+  - pattern: Huawei Ascend 910
+    case: insensitive
   - Ascend 910
-  - Huawei 910
+  - pattern: Huawei 910
+    case: insensitive
   notes: null
 - id: huawei-ascend-910a
   display: Huawei Ascend 910A
@@ -206,9 +227,11 @@ models:
   tdp_w: 310.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910A
+  - pattern: Huawei Ascend 910A
+    case: insensitive
   - Ascend 910A
-  - Huawei 910A
+  - pattern: Huawei 910A
+    case: insensitive
   - pattern: 910A
     gate: gpu
   notes: null
@@ -227,9 +250,11 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910A Premium
+  - pattern: Huawei Ascend 910A Premium
+    case: insensitive
   - Ascend 910A Premium
-  - Huawei 910A Premium
+  - pattern: Huawei 910A Premium
+    case: insensitive
   - 910A Premium
   notes: null
 - id: huawei-ascend-910a-pro
@@ -247,9 +272,11 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910A Pro
+  - pattern: Huawei Ascend 910A Pro
+    case: insensitive
   - Ascend 910A Pro
-  - Huawei 910A Pro
+  - pattern: Huawei 910A Pro
+    case: insensitive
   - 910A Pro
   notes: null
 - id: alibaba-t-head-hanguang-800
@@ -285,7 +312,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun K200
+  - pattern: Baidu Kunlun K200
+    case: insensitive
   - Kunlun K200
   notes: null
 - id: google-tpu-v4i
@@ -303,7 +331,8 @@ models:
   tdp_w: 175.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Google TPU v4i
+  - pattern: Google TPU v4i
+    case: insensitive
   - TPU v4i
   notes: null
 - id: cambricon-mlu290-m5
@@ -321,7 +350,8 @@ models:
   tdp_w: 350.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU290\-M5
+  - pattern: Cambricon MLU290\-M5
+    case: insensitive
   - MLU290\-M5
   notes: null
 - id: iluvatar-tianshu-zhixin-tiangai-100
@@ -340,7 +370,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - Tianshu Zhixin Tiangai 100
-  - Iluvatar Tianshu Zhixin Tiangai 100
+  - pattern: Iluvatar Tianshu Zhixin Tiangai 100
+    case: insensitive
   - BI\-V100
   notes: null
 - id: nvidia-a10g
@@ -358,7 +389,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA A10G
+  - pattern: NVIDIA A10G
+    case: insensitive
   - pattern: A10G
     gate: gpu
   notes: null
@@ -378,7 +410,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - Shensuan\-1
-  - Hygon Shensuan\-1
+  - pattern: Hygon Shensuan\-1
+    case: insensitive
   notes: null
 - id: baidu-kunlun-ii
   display: Baidu Kunlun II
@@ -395,7 +428,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun II
+  - pattern: Baidu Kunlun II
+    case: insensitive
   - Kunlun II
   notes: null
 - id: tesla-d1-dojo
@@ -413,7 +447,8 @@ models:
   tdp_w: 400.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Tesla D1 Dojo
+  - pattern: Tesla D1 Dojo
+    case: insensitive
   - D1 Dojo
   notes: null
 - id: cambricon-mlu370-s4
@@ -431,7 +466,8 @@ models:
   tdp_w: 75.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU370\-S4
+  - pattern: Cambricon MLU370\-S4
+    case: insensitive
   - MLU370\-S4
   notes: null
 - id: cambricon-mlu370-s8
@@ -449,7 +485,8 @@ models:
   tdp_w: 75.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU370\-S8
+  - pattern: Cambricon MLU370\-S8
+    case: insensitive
   - MLU370\-S8
   notes: null
 - id: cambricon-mlu370-x4
@@ -467,7 +504,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU370\-X4
+  - pattern: Cambricon MLU370\-X4
+    case: insensitive
   - MLU370\-X4
   notes: null
 - id: baidu-kunlun-r100
@@ -485,7 +523,8 @@ models:
   tdp_w: 100.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun R100
+  - pattern: Baidu Kunlun R100
+    case: insensitive
   - Kunlun R100
   notes: null
 - id: baidu-kunlun-r200
@@ -503,7 +542,8 @@ models:
   tdp_w: 150.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun R200
+  - pattern: Baidu Kunlun R200
+    case: insensitive
   - Kunlun R200
   notes: null
 - id: baidu-kunlun-r200-8f
@@ -521,7 +561,8 @@ models:
   tdp_w: 160.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun R200\-8F
+  - pattern: Baidu Kunlun R200\-8F
+    case: insensitive
   - Kunlun R200\-8F
   notes: null
 - id: cambricon-mlu370-x8
@@ -539,7 +580,8 @@ models:
   tdp_w: 250.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon MLU370\-X8
+  - pattern: Cambricon MLU370\-X8
+    case: insensitive
   - MLU370\-X8
   notes: null
 - id: huawei-ascend-910b
@@ -557,9 +599,11 @@ models:
   tdp_w: 400.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910B
+  - pattern: Huawei Ascend 910B
+    case: insensitive
   - Ascend 910B
-  - Huawei 910B
+  - pattern: Huawei 910B
+    case: insensitive
   - pattern: 910B
     gate: gpu
   notes: null
@@ -578,9 +622,12 @@ models:
   tdp_w: 600.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Habana Gaudi2
-  - Habana Gaudi2
-  - Intel Gaudi2
+  - pattern: Intel Habana Gaudi2
+    case: insensitive
+  - pattern: Habana Gaudi2
+    case: insensitive
+  - pattern: Intel Gaudi2
+    case: insensitive
   - Gaudi2
   - Gaudi 2
   notes: null
@@ -600,7 +647,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - MT\-3000
-  - NUDT MT\-3000
+  - pattern: NUDT MT\-3000
+    case: insensitive
   notes: null
 - id: biren-br100
   display: Biren BR100
@@ -617,7 +665,8 @@ models:
   tdp_w: 550.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Biren BR100
+  - pattern: Biren BR100
+    case: insensitive
   - pattern: BR100
     gate: gpu
   notes: null
@@ -636,7 +685,8 @@ models:
   tdp_w: 400.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA A800
+  - pattern: NVIDIA A800
+    case: insensitive
   - pattern: A800
     gate: gpu
   notes: null
@@ -676,7 +726,8 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Amazon Trainium1
+  - pattern: Amazon Trainium1
+    case: insensitive
   - Trainium1
   - Trainium 1
   notes: null
@@ -713,7 +764,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - Tianshu Zhixin Zhikai 100
-  - Iluvatar Tianshu Zhixin Zhikai 100
+  - pattern: Iluvatar Tianshu Zhixin Zhikai 100
+    case: insensitive
   notes: null
 - id: amd-radeon-instinct-mi300
   display: AMD Radeon Instinct MI300
@@ -730,9 +782,11 @@ models:
   tdp_w: 600.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - AMD Radeon Instinct MI300
+  - pattern: AMD Radeon Instinct MI300
+    case: insensitive
   - Radeon Instinct MI300
-  - AMD MI300
+  - pattern: AMD MI300
+    case: insensitive
   - pattern: MI300
     gate: gpu
   notes: null
@@ -751,7 +805,8 @@ models:
   tdp_w: 130.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Baidu Kunlun RG800
+  - pattern: Baidu Kunlun RG800
+    case: insensitive
   - Kunlun RG800
   notes: null
 - id: intel-data-center-gpu-max-1100
@@ -769,7 +824,8 @@ models:
   tdp_w: 300.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Data Center GPU Max 1100
+  - pattern: Intel Data Center GPU Max 1100
+    case: insensitive
   - Data Center GPU Max 1100
   notes: null
 - id: intel-data-center-gpu-max-1350
@@ -787,7 +843,8 @@ models:
   tdp_w: 450.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Data Center GPU Max 1350
+  - pattern: Intel Data Center GPU Max 1350
+    case: insensitive
   - Data Center GPU Max 1350
   notes: null
 - id: intel-data-center-gpu-max-1550
@@ -805,7 +862,8 @@ models:
   tdp_w: 600.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Data Center GPU Max 1550
+  - pattern: Intel Data Center GPU Max 1550
+    case: insensitive
   - Data Center GPU Max 1550
   notes: null
 - id: metax-mxc500
@@ -823,7 +881,8 @@ models:
   tdp_w: 450.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - MetaX MXC500
+  - pattern: MetaX MXC500
+    case: insensitive
   - MXC500
   - MXC 500
   notes: null
@@ -842,7 +901,8 @@ models:
   tdp_w: 700.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA GH100
+  - pattern: NVIDIA GH100
+    case: insensitive
   - pattern: GH100
     gate: gpu
   notes: null
@@ -861,7 +921,8 @@ models:
   tdp_w: 72.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA L4
+  - pattern: NVIDIA L4
+    case: insensitive
   notes: null
 - id: amazon-aws-inferentia2
   display: AWS Inferentia2
@@ -878,7 +939,8 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - AWS Inferentia2
+  - pattern: AWS Inferentia2
+    case: insensitive
   - Inferentia2
   - Inferentia 2
   notes: null
@@ -918,7 +980,8 @@ models:
   tdp_w: 25.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Meta MTIA v1
+  - pattern: Meta MTIA v1
+    case: insensitive
   - MTIA v1
   - MTIA 100
   notes: on-package SRAM only, no external memory
@@ -937,7 +1000,8 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - MetaX MXN100
+  - pattern: MetaX MXN100
+    case: insensitive
   - MXN100
   - MXN 100
   notes: null
@@ -956,7 +1020,8 @@ models:
   tdp_w: 700.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA GH200
+  - pattern: NVIDIA GH200
+    case: insensitive
   - pattern: GH200
     gate: gpu
   notes: null
@@ -975,7 +1040,10 @@ models:
   tdp_w: 275.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA L20
+  - pattern: NVIDIA L20
+    case: insensitive
+  - pattern: L20
+    gate: gpu
   notes: null
 - id: nvidia-hgx-h20
   display: NVIDIA HGX H20
@@ -992,9 +1060,12 @@ models:
   tdp_w: 400.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA HGX H20
-  - HGX H20
-  - NVIDIA H20
+  - pattern: NVIDIA HGX H20
+    case: insensitive
+  - pattern: HGX H20
+    case: insensitive
+  - pattern: NVIDIA H20
+    case: insensitive
   notes: null
 - id: nvidia-l2
   display: NVIDIA L2
@@ -1011,7 +1082,8 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA L2
+  - pattern: NVIDIA L2
+    case: insensitive
   notes: null
 - id: sunway-sw26010-pro
   display: Sunway SW26010-Pro
@@ -1028,7 +1100,8 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Sunway SW26010\-Pro
+  - pattern: Sunway SW26010\-Pro
+    case: insensitive
   - SW26010\-Pro
   notes: null
 - id: amd-radeon-instinct-mi308x
@@ -1046,9 +1119,11 @@ models:
   tdp_w: 750.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - AMD Radeon Instinct MI308X
+  - pattern: AMD Radeon Instinct MI308X
+    case: insensitive
   - Radeon Instinct MI308X
-  - AMD MI308X
+  - pattern: AMD MI308X
+    case: insensitive
   - MI308X
   notes: null
 - id: moore-threads-mtt-s4000
@@ -1067,7 +1142,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - MTT S4000
-  - Moore Threads MTT S4000
+  - pattern: Moore Threads MTT S4000
+    case: insensitive
   notes: null
 - id: meta-mtia-v2
   display: Meta MTIA v2
@@ -1084,7 +1160,8 @@ models:
   tdp_w: 90.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Meta MTIA v2
+  - pattern: Meta MTIA v2
+    case: insensitive
   - MTIA v2
   - MTIA 200
   notes: on-package SRAM only, no external memory
@@ -1104,7 +1181,8 @@ models:
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
   - Maia 100
-  - Microsoft Maia 100
+  - pattern: Microsoft Maia 100
+    case: insensitive
   notes: null
 - id: intel-habana-gaudi3
   display: Intel Habana Gaudi3
@@ -1121,9 +1199,12 @@ models:
   tdp_w: 900.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Intel Habana Gaudi3
-  - Habana Gaudi3
-  - Intel Gaudi3
+  - pattern: Intel Habana Gaudi3
+    case: insensitive
+  - pattern: Habana Gaudi3
+    case: insensitive
+  - pattern: Intel Gaudi3
+    case: insensitive
   - Gaudi3
   - Gaudi 3
   notes: null
@@ -1142,7 +1223,8 @@ models:
   tdp_w: 200.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Cambricon Siyuan 590
+  - pattern: Cambricon Siyuan 590
+    case: insensitive
   - Siyuan 590
   notes: null
 - id: huawei-ascend-910c
@@ -1160,9 +1242,11 @@ models:
   tdp_w: 700.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 910C
+  - pattern: Huawei Ascend 910C
+    case: insensitive
   - Ascend 910C
-  - Huawei 910C
+  - pattern: Huawei 910C
+    case: insensitive
   - pattern: 910C
     gate: gpu
   notes: null
@@ -1181,7 +1265,8 @@ models:
   tdp_w: 500.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Amazon Trainium2
+  - pattern: Amazon Trainium2
+    case: insensitive
   - Trainium2
   - Trainium 2
   notes: null
@@ -1200,7 +1285,8 @@ models:
   tdp_w: 1200.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA GB200
+  - pattern: NVIDIA GB200
+    case: insensitive
   - pattern: GB200
     gate: gpu
   notes: null
@@ -1219,7 +1305,8 @@ models:
   tdp_w: 1400.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - NVIDIA GB300
+  - pattern: NVIDIA GB300
+    case: insensitive
   - pattern: GB300
     gate: gpu
   notes: null
@@ -1238,9 +1325,11 @@ models:
   tdp_w: null
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Huawei Ascend 920
+  - pattern: Huawei Ascend 920
+    case: insensitive
   - Ascend 920
-  - Huawei 920
+  - pattern: Huawei 920
+    case: insensitive
   notes: null
 - id: amazon-trainium3
   display: Amazon Trainium3
@@ -1257,7 +1346,8 @@ models:
   tdp_w: 700.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Amazon Trainium3
+  - pattern: Amazon Trainium3
+    case: insensitive
   - Trainium3
   - Trainium 3
   notes: null
@@ -1276,7 +1366,8 @@ models:
   tdp_w: 750.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Microsoft Maia 200
+  - pattern: Microsoft Maia 200
+    case: insensitive
   - Maia 200
   notes: null
 - id: meta-mtia-300
@@ -1294,6 +1385,7 @@ models:
   tdp_w: 800.0
   spec_source: https://epoch.ai/data/machine-learning-hardware
   aliases:
-  - Meta MTIA 300
+  - pattern: Meta MTIA 300
+    case: insensitive
   - MTIA 300
   notes: null
