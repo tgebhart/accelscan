@@ -157,43 +157,28 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- the context-gate vocabularies, the generic terms, and per-id
 overrides that replace a generated entry should a scrape ever go wrong.
 
-\input{tables/registry_composition}
-Because both generators write into one alias namespace, the rules that decide
-alias \emph{tier} are stated once and shared
-(\texttt{scripts/alias\_rules.py}) rather than per generator. A bare short code
-receives a gated alias unless (i) the code carries a named non-hardware meaning,
-or (ii) another entry already claims that exact string. Clause (i) is an
-enumerated list, each item recording the collision that earns it a place
-(\texttt{T4} thyroxine and the thoracic vertebra, \texttt{L2} regularization and
-cache, \texttt{H20} water, \texttt{MI6} the agency, \texttt{A10} the aircraft,
-\texttt{C60} fullerene), plus a general clause denying every all-digit code,
-since a bare \texttt{7210} or \texttt{910} is a quantity in prose and no context
-vocabulary distinguishes the two. Clause (ii) covers genuine cross-vendor
-collisions: Intel's Arc~Pro~A40 and NVIDIA's A40 are different devices with one
-code, as are the Radeon~Pro~5500~XT and the RX~5500~XT, so the bare form
-identifies neither and each keeps its qualified spelling. Denied models remain
-reachable through a vendor- or line-qualified alias (``NVIDIA L4'', ``Tesla T4'',
-``Xeon Phi 7210''). A length threshold was considered as the rule and rejected:
-it states more simply but discards \texttt{K80}, \texttt{K20}, \texttt{K40},
-\texttt{P40}, \texttt{A30}, \texttt{A40} and \texttt{L40}, all real devices
-with substantial paper support. Conversely, an alias whose leading token is a
-vendor name is compiled case-insensitively, overriding the general rule that an
-all-uppercase pattern matches case-sensitively; without this, ``Nvidia L4''
---- the ordinary spelling --- did not match, a directional recall loss that fell
-on precisely the vendor-qualified-only export-control parts (L4, A800, HGX~H20).
-Two further generated forms exist because papers write them and the full name is
-unambiguous without its prefix: a model number carrying a distinctive suffix
-(\texttt{1080 Ti}, \texttt{2080 Ti}, \texttt{5700 XT}) is emitted without its
-series prefix, since a bare \texttt{1080} is a video resolution while
-\texttt{1080 Ti} is only ever a GPU; and a workstation line name is strippable
-(\texttt{Quadro RTX 8000} also matches as \texttt{RTX 8000}). Both were added
-after the external evaluation below found them annotated as hardware and missed.
+Each entry carries a set of \emph{aliases}, and the compiled registry is a
+three-stage matcher over them. An Aho--Corasick automaton over the literal cores of
+every alias prefilters text; each surviving core is confirmed by a per-alias regular
+expression with hardware-safe boundaries; and aliases whose strings are ambiguous
+outside a hardware context are \emph{gated}, counting only in the presence of a
+context term from a small vocabulary. Stage 1 (\S\,``Candidate passage generation'')
+describes the mechanics; what belongs here is that tier assignment is a property of
+the registry rather than of the corpus, decided by one rule shared by both
+generators. That rule is: a bare model code is gated unless its string carries a
+documented non-hardware meaning or is claimed by another entry, in which case the
+model is reachable only through a vendor- or product-line-qualified form; a
+purely numeric code is never emitted bare; and an alias led by a vendor name is
+matched case-insensitively, since vendor names are spelled inconsistently while the
+model code that follows removes the ambiguity. The rules are enumerated in code
+with their justifications, and every collision they exist to prevent is pinned as a
+labelled test case, so a registry rebuild cannot silently reintroduce one.
 
+\input{tables/registry_composition}
 Table~\ref{tab:registry-composition} reports the composition of registry
-v0.4.0 --- entries by vendor and market segment, the release years each vendor
-spans, and per-axis specification coverage --- and is generated from the compiled
-registry rather than transcribed
-(\texttt{scripts/registry\_stats.py}). Generic terms (\texttt{GPU},
+v0.4.0 --- entries per vendor, the release years each spans, and per-axis
+specification coverage --- and is generated from the compiled registry rather than
+transcribed (\texttt{scripts/registry\_stats.py}). Generic terms (\texttt{GPU},
 \texttt{CUDA}, \texttt{TPU}, \ldots) are first-class entries so that
 generic-only reporting is measurable. Every specific model is generated, as are the two
 vendor brand-trigger entries: their aliases are the product-line names that lead
