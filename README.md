@@ -47,6 +47,11 @@ cp .env.example ~/.config/accelscan.env   # fill in MSI S3 keys
   content changed without a bump.
 - `python -m accelscan.scripts.eval_shner` measures candidate-generation recall
   against SH-NER's manual annotations (see the script docstring for the download).
+- `python -m accelscan.scripts.registry_stats` regenerates the registry-composition
+  numbers (entries by vendor/segment, release spans, per-axis spec coverage, alias
+  and tier-B counts) and writes `docs/tables/registry_composition.tex`, which
+  `docs/methods.tex` inputs. Re-run it after any registry rebuild rather than
+  editing numbers into the prose.
 
 ## Pipeline
 

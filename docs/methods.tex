@@ -157,6 +157,7 @@ Hand curation (\texttt{registry/hardware.yaml}) supplies only what cannot be
 scraped --- the context-gate vocabularies, the generic terms, and per-id
 overrides that replace a generated entry should a scrape ever go wrong.
 
+\input{tables/registry_composition}
 Because both generators write into one alias namespace, the rules that decide
 alias \emph{tier} are stated once and shared
 (\texttt{scripts/alias\_rules.py}) rather than per generator. A bare short code
@@ -188,14 +189,13 @@ series prefix, since a bare \texttt{1080} is a video resolution while
 (\texttt{Quadro RTX 8000} also matches as \texttt{RTX 8000}). Both were added
 after the external evaluation below found them annotated as hardware and missed.
 
-Registry v0.4.0 contains $1{,}226$ entries: $1{,}217$ specific models and 9
-generic terms (\texttt{GPU},
-\texttt{CUDA}, \texttt{TPU}, \ldots, first-class entries so that generic-only
-reporting is measurable), spanning 22 manufacturers. The largest are NVIDIA 556,
-AMD 542, Intel 43, Apple 18 and Google 10, then a long tail of eight or fewer
-entries each (Huawei, Cambricon, Baidu, Amazon, Meta, Microsoft, MetaX, Biren,
-Iluvatar, \ldots). By market segment: consumer 929, workstation 136,
-datacenter 130, cloud 22. Every specific model is generated, as are the two
+Table~\ref{tab:registry-composition} reports the composition of registry
+v0.4.0 --- entries by vendor and market segment, the release years each vendor
+spans, and per-axis specification coverage --- and is generated from the compiled
+registry rather than transcribed
+(\texttt{scripts/registry\_stats.py}). Generic terms (\texttt{GPU},
+\texttt{CUDA}, \texttt{TPU}, \ldots) are first-class entries so that
+generic-only reporting is measurable. Every specific model is generated, as are the two
 vendor brand-trigger entries: their aliases are the product-line names that lead
 model names in the tables, kept when they name at least five models and screened
 against a vendor-neutral list of words that are a different product category or
@@ -220,11 +220,13 @@ entries --- because an architecture was never model-specific.
 Apple silicon is carried per chip variant (M1, M1 Pro, M1 Max, M1 Ultra, \ldots,
 M5 Max) rather than per generation, because within a generation the variants
 differ by up to $8\times$ in GPU throughput and $16\times$ in addressable memory.
-Release dates span 2000--2026 and are populated for all $1{,}217$ models, since
-the frontier-lag and half-life estimands depend on them. Per-device
-specification coverage across models is: memory $98.0\%$, FP32 $64.3\%$, FP64
-$45.9\%$, dense FP16 tensor throughput $7.8\%$ (defined only for post-Volta
-parts), TDP $70.9\%$. Where a family is named without a model number --- ``an
+Release dates are populated for every model, since the frontier-lag and
+half-life estimands depend on them. Specification coverage varies by axis and by
+vendor for substantive reasons visible in the table: dense FP16 tensor throughput
+exists only for post-Volta parts and so is sparse overall, Google's TPUs report a
+tensor figure and no FP32 or FP64 at all, and Apple's integrated GPUs report FP32
+and memory but neither FP64 nor TDP. Where a family is named without a model
+number --- ``an
 Intel Xeon Phi'', ``AWS Trainium'' --- the registry carries a family entry whose
 specifications are null, since an unnumbered mention does not say which
 generation ran. Missing specifications remain null and are excluded
