@@ -4,23 +4,8 @@
 # accelscan/scripts/build_registry.py into registry/generated/*.yaml.
 # This file holds ONLY what no machine-readable source can give: the context-term
 # gate vocabularies and the generic terms (GPU, CUDA, TPU, ...), which are what
-# make generic-only reporting measurable. Vendor brand triggers are derived from
-# the product-line names in the tables, and every specific model comes from a
-# generator --
-# registry/generated/wikipedia.yaml (NVIDIA, AMD, TPU, Apple M-series, Xeon Phi,
-# Intel Arc) and registry/generated/epoch.yaml (Epoch AI's ML-hardware table:
-# Chinese domestic silicon, first-party cloud parts, export-control SKUs, Gaudi,
-# Ascend, Trainium, Inferentia). The loader merges this file with
-# registry/generated/*.yaml; an entry here with the same id overrides a
-# generated one, which is the escape hatch if a scrape ever goes wrong.
+# make generic-only reporting measurable. 
 #
-# Dropped rather than migrated (v0.3.0, Gebhart): Jetson (embedded modules are out
-# of scope), Cerebras/Graphcore (no source we parse carries them), and the
-# architecture words for both vendors -- an architecture is a generation, not a
-# device, it has no per-device specs, and the generated model entries already
-# carry it as a metadata column. All of these are bucketed by
-# `normalize.classify_unresolved` so a descoping decision stays distinguishable
-# from a registry gap; the LLM still records the manufacturer either way.
 #
 # Pattern conventions (enforced/expanded by accelscan/registry.py):
 #   - Literal spaces in patterns compile to [\s-]* ('RTX 3090' matches
@@ -32,16 +17,12 @@
 #     case: sensitive|insensitive.
 #   - A plain string alias is shorthand for {pattern: <str>}.
 #   - gate: <name> makes the alias tier B — it counts only when a
-#     context_terms[<name>] regex appears within ±250 chars, or the paper has
-#     a tier-A model hit elsewhere.
+#     context_terms[<name>] regex appears in the matched paragraph or the adjacent
+#     250 chars of either neighbour, or the paper has a tier-A model hit elsewhere
+#     (the gate is position-independent within that window, not ±250 chars of the
+#     match itself).
 #   - kind: model (default) | architecture | generic.
 
-# v0.4.0 (matching changed -> re-scan required): one bare-code rule now serves
-# both generators (accelscan/scripts/alias_rules.py) in place of the two they had,
-# and a vendor-qualified alias is case-insensitive, so "Nvidia L4" matches where
-# only "NVIDIA L4" did. Net alias delta: 161 patterns gained case-insensitivity,
-# 8 all-digit Xeon Phi codes and bare 'A10' lost their bare form, bare 'L20'
-# gained one.
 version: "0.4.0"
 
 context_terms:
