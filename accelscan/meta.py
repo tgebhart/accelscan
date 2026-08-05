@@ -51,7 +51,11 @@ def read_by_part(prefix: str, cols: list[str], *, so: dict, client=None,
         if part.height:
             parts.append(part)
             total += part.height
-        if label and ((i + 1) % 60 == 0 or i + 1 == len(keys)):
+        # every ~10% rather than every 60 parts: the papers table has exactly 60
+        # parts, so the old cadence printed only on the final one and a hung read
+        # was indistinguishable from a slow one
+        step = max(1, len(keys) // 10)
+        if label and ((i + 1) % step == 0 or i + 1 == len(keys)):
             print(f'  [{label}] {i+1}/{len(keys)} parts, {total:,} rows', file=sys.stderr)
         if stop_at and total >= stop_at:
             break

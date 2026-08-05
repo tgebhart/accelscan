@@ -94,11 +94,21 @@ def mentions_glob(model_tag: str, prompt_version: str,
 
 
 def storage_options() -> dict:
-    """polars scan_parquet/read_parquet storage_options for the MSI bucket."""
+    """polars scan_parquet/read_parquet storage_options for the MSI bucket.
+
+    The timeouts are not decoration. MSI S3 is an on-premise Ceph RGW that closes
+    idle connections; object-store's default is to wait indefinitely, so a dropped
+    connection leaves the reader parked on a socket in CLOSE-WAIT forever rather
+    than failing. `denominator` hung for an hour that way on a papers-metadata
+    part that normally reads in under a second. With a timeout, object-store's
+    own retry handles it.
+    """
     cfg = s3_config()
     return {
         'aws_access_key_id': cfg['aws_access_key_id'],
         'aws_secret_access_key': cfg['aws_secret_access_key'],
         'endpoint_url': cfg['endpoint_url'],
         'aws_region': 'us-east-1',
+        'timeout': '120s',
+        'connect_timeout': '30s',
     }
