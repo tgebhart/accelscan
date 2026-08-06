@@ -1,4 +1,4 @@
-"""Semantic Scholar bulk-dataset download (papers, abstracts, citations).
+"""Semantic Scholar bulk-dataset download (papers, abstracts, authors, citations).
 
 Ported from novelty_corp/semanticscholar/download.py. Two changes: the API key
 comes from the environment rather than being hardcoded in the module, and the
@@ -9,7 +9,7 @@ The bulk API hands out pre-signed part URLs that expire after roughly an hour, s
 a long download has to be able to re-list a dataset mid-run; `preprocess.py` does
 that and this module exposes the pieces it needs.
 
-    python -m accelscan.semanticscholar.download            # all three datasets
+    python -m accelscan.semanticscholar.download            # all four datasets
     python -m accelscan.semanticscholar.download --datasets papers abstracts
 """
 
@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 from accelscan.config import S2_API_BASE, S2_DATA_DIR, S2_RELEASE_ID, s2_api_key
 
-DATASETS = ('papers', 'abstracts', 'citations')
+DATASETS = ('papers', 'abstracts', 'authors', 'citations')
 _RETRY = dict(wait=wait_exponential(multiplier=1, min=2, max=60),
               stop=stop_after_attempt(5), reraise=True)
 

@@ -9,13 +9,13 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
 # Semantic Scholar bulk release -> local parquet parts -> S3.
-# papers + abstracts are what the analytic stages read (config.PAPERS_PREFIX,
-# ABSTRACTS_PREFIX). `citations` is a separate, far larger job -- see
-# slurm/s2_citations.txt -- and is only needed to rebuild citation outcomes.
+# papers + abstracts + authors are the metadata tables (config.PAPERS_PREFIX,
+# ABSTRACTS_PREFIX, AUTHORS_PREFIX). `citations` is a separate, far larger job --
+# see slurm/s2_citations.txt -- and is only needed to rebuild citation outcomes.
 export PYTHONUNBUFFERED=TRUE
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
 source activate accelscan
 
-python -m accelscan.semanticscholar.preprocess --datasets papers abstracts
-python -m accelscan.semanticscholar.preprocess --upload papers abstracts
+python -m accelscan.semanticscholar.preprocess --datasets papers abstracts authors
+python -m accelscan.semanticscholar.preprocess --upload papers abstracts authors

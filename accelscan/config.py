@@ -20,6 +20,7 @@ S2_API_BASE = 'https://api.semanticscholar.org/datasets/v1/release/'
 S2_PROCESSED_PREFIX = f'data/semanticscholar/{S2_RELEASE_ID}/processed'
 PAPERS_PREFIX = f'{S2_PROCESSED_PREFIX}/papers/parts/'
 ABSTRACTS_PREFIX = f'{S2_PROCESSED_PREFIX}/abstracts/parts/'
+AUTHORS_PREFIX = f'{S2_PROCESSED_PREFIX}/authors/parts/'
 # Citation/disruption outcomes, produced by accelscan.semanticscholar.aggregate.
 # Defaults to the lab table the analytic stage has always read, so nothing moves
 # until a fresh one is built.

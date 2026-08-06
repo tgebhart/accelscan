@@ -14,10 +14,10 @@ functions here: joining citations to publication years (`build_citation_edgelist
 which is the input `outcomes.py` needs, and uploading the processed parts to S3
 (`upload_parts`), which is where every accelscan stage actually reads them from.
 
-    python -m accelscan.semanticscholar.preprocess --datasets papers abstracts
+    python -m accelscan.semanticscholar.preprocess --datasets papers abstracts authors
     python -m accelscan.semanticscholar.preprocess --datasets citations
     python -m accelscan.semanticscholar.preprocess --edgelist
-    python -m accelscan.semanticscholar.preprocess --upload papers abstracts
+    python -m accelscan.semanticscholar.preprocess --upload papers abstracts authors
 """
 
 import argparse
@@ -35,7 +35,7 @@ from accelscan.semanticscholar.download import (download_dataset_part,
                                                 get_dataset_parts,
                                                 get_release_id, part_savename)
 
-DATASETS = ('papers', 'abstracts', 'citations', 'authors')
+DATASETS = ('papers', 'abstracts', 'authors', 'citations')
 URL_EXPIRED = (400, 403)
 
 
@@ -103,7 +103,21 @@ def _transform_papers(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-TRANSFORMS = {'papers': _transform_papers}
+def _transform_authors(df: pl.DataFrame) -> pl.DataFrame:
+    """Lift ORCID/DBLP out of the struct, matching what papers does with DOI/MAG.
+
+    A struct column is awkward to filter or join on, and the whole point of the
+    authors table is joining it to the author ids `papers` already carries.
+    """
+    if 'externalids' in df.columns and df.schema['externalids'] != pl.Null:
+        df = df.with_columns(
+            pl.col('externalids').struct.field('ORCID').alias('orcid'),
+            pl.col('externalids').struct.field('DBLP').alias('dblp'),
+        ).drop('externalids')
+    return df
+
+
+TRANSFORMS = {'papers': _transform_papers, 'authors': _transform_authors}
 
 
 def raw_dir(dataset: str, release_id: str, data_dir: str) -> str:

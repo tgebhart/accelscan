@@ -95,7 +95,7 @@ from `novelty_corp` so this repo no longer depends on a sibling checkout. Only
 needed for a new S2 release — the 2026-02-10 tables are already on S3.
 
 ```bash
-# 1. papers + abstracts -> local parquet parts -> S3  [msibigmem, ~1 day]
+# 1. papers + abstracts + authors -> local parquet parts -> S3  [msibigmem, ~1 day]
 #    (one part at a time: download, parse, write parquet, delete the raw file)
 sbatch slurm/s2_download.txt
 
@@ -119,6 +119,12 @@ python -m accelscan.semanticscholar.aggregate \
   computation would make these numbers incomparable to the patent work.
 - Preprocessing writes locally; **`--upload` is what makes a release usable**, since
   every stage reads these prefixes from S3, not from disk.
+- `authors` (`AUTHORS_PREFIX`) carries name, affiliations, ORCID/DBLP, papercount,
+  citationcount and h-index per `authorid`. `papers` keeps only the author *ids*, so
+  this is the table that makes them mean anything — join
+  `papers.authors` (exploded) to `authors.authorid`. Nothing in the pipeline reads
+  it yet; it is downloaded so author-level analysis does not require another
+  multi-day job later.
 
 ## Capacity estimands (stage 3.5)
 

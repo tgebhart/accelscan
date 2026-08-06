@@ -97,6 +97,49 @@ def test_build_citation_edgelist_attaches_both_years(tmp_path):
     assert rows[(3, 99)] == (2021, None)
 
 
+AUTHORS = [
+    {'authorid': 'a1', 'externalids': {'ORCID': '0000-0001', 'DBLP': ['X 0001']},
+     'name': 'X', 'affiliations': ['UMN'], 'papercount': 12,
+     'citationcount': 300, 'hindex': 7},
+    {'authorid': 'a2', 'externalids': None, 'name': 'Y', 'affiliations': None,
+     'papercount': None, 'citationcount': None, 'hindex': None},
+]
+
+
+def test_authors_parse_and_transform(tmp_path):
+    raw = tmp_path / 'part0.jsonl.gz'
+    write_ndjson_gz(raw, AUTHORS)
+    out = tmp_path / 'part0.parquet'
+    assert pp.parse_and_delete(str(raw), str(out), pp.TRANSFORMS['authors'],
+                               pp.SCHEMAS['authors']) == str(out)
+    df = pl.read_parquet(out)
+    assert df.height == 2
+    # flattened the same way papers flattens DOI/MAG, so the table joins cleanly
+    # to the author ids papers already carries
+    assert 'externalids' not in df.columns
+    assert df['orcid'].to_list() == ['0000-0001', None]
+    assert df['dblp'].to_list() == [['X 0001'], None]
+    assert df['authorid'].to_list() == ['a1', 'a2']
+    assert df['hindex'].to_list() == [7, None]
+
+
+def test_authors_join_to_paper_author_ids(tmp_path):
+    """The reason the table is downloaded at all: papers keeps only author ids."""
+    praw, araw = tmp_path / 'p.jsonl.gz', tmp_path / 'a.jsonl.gz'
+    write_ndjson_gz(praw, PAPERS)
+    write_ndjson_gz(araw, AUTHORS)
+    papers = pl.read_parquet(pp.parse_and_delete(
+        str(praw), str(tmp_path / 'p.parquet'), pp.TRANSFORMS['papers'],
+        pp.SCHEMAS['papers']))
+    authors = pl.read_parquet(pp.parse_and_delete(
+        str(araw), str(tmp_path / 'a.parquet'), pp.TRANSFORMS['authors'],
+        pp.SCHEMAS['authors']))
+    joined = (papers.select('corpusid', 'authors')
+              .explode('authors', empty_as_null=True)
+              .join(authors, left_on='authors', right_on='authorid', how='inner'))
+    assert joined.select('corpusid', 'name').rows() == [(1, 'X')]
+
+
 @pytest.mark.parametrize('dataset', ['papers', 'abstracts', 'citations', 'authors'])
 def test_schema_declared_for_every_dataset(dataset):
     assert dataset in pp.SCHEMAS and pp.SCHEMAS[dataset]
