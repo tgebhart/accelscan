@@ -21,6 +21,7 @@ which is the input `outcomes.py` needs, and uploading the processed parts to S3
 """
 
 import argparse
+import glob
 import os
 import sys
 import urllib.error
@@ -192,35 +193,57 @@ def download_process_delete(dataset: str, release_id: str = S2_RELEASE_ID,
 
 def build_citation_edgelist(release_id: str = S2_RELEASE_ID,
                             data_dir: str = S2_DATA_DIR,
-                            out_path: str | None = None) -> str:
+                            out_dir: str | None = None) -> str:
     """Citation edges with the citing and cited publication years attached.
 
     This is the input `outcomes.py` consumes, and the reason it exists separately:
     the raw citations dump carries only corpus ids, while every window-based
     outcome (i_k, cd_k) needs both endpoints' years.
 
-    Done lazily and streamed: the edge list is billions of rows, so the join is a
-    scan over the parts rather than a materialized frame. The original did this
-    with pandas `.merge` on a polars frame, which cannot have run as written.
+    Written as a directory of parts, one per input part, NOT a single file. A
+    single lazy join sink over all 403 parts dies with "row count (4294972130)
+    exceeded maximum supported of 4294967295" -- polars' streaming engine carries a
+    32-bit row counter, and 2**32-1 rows is below this edge list. (That 4.29e9 is an
+    engine-internal count, not the join's output: the release has 1,416,420,846
+    edges, `corpusid` is unique across the papers parts, and both joins are
+    row-preserving, which this function asserts per part.)
+
+    Peak memory is the years table (~3.6 GB for 236.8M rows) plus one part.
+    Restartable: an existing output part is skipped.
     """
     release_id = get_release_id(release_id)
     proc = os.path.join(data_dir, release_id, 'processed')
-    out_path = out_path or os.path.join(proc, 'citations.parquet.gz')
+    out_dir = out_dir or os.path.join(proc, 'citations_edges', 'parts')
+    os.makedirs(out_dir, exist_ok=True)
 
     years = (pl.scan_parquet(os.path.join(proc, 'papers', 'parts', '*.parquet'))
-             .select('corpusid', 'year'))
-    edges = pl.scan_parquet(os.path.join(proc, 'citations', 'parts', '*.parquet'))
-    out = (edges
-           .join(years.rename({'corpusid': 'citingcorpusid',
-                               'year': 'citingyear'}),
-                 on='citingcorpusid', how='left')
-           .join(years.rename({'corpusid': 'citedcorpusid',
-                               'year': 'citedyear'}),
-                 on='citedcorpusid', how='left')
-           .select('citingcorpusid', 'citedcorpusid', 'citingyear', 'citedyear'))
-    out.sink_parquet(out_path, compression='gzip')
-    print(f'wrote {out_path}', file=sys.stderr)
-    return out_path
+             .select('corpusid', 'year').collect())
+    if years['corpusid'].n_unique() != years.height:
+        raise SystemExit(f'papers has duplicate corpusid ({years.height:,} rows, '
+                         f'{years["corpusid"].n_unique():,} unique): the year joins '
+                         f'below would multiply edges rather than annotate them')
+    citing = years.rename({'corpusid': 'citingcorpusid', 'year': 'citingyear'})
+    cited = years.rename({'corpusid': 'citedcorpusid', 'year': 'citedyear'})
+    print(f'years: {years.height:,} papers', file=sys.stderr)
+
+    parts = sorted(glob.glob(os.path.join(proc, 'citations', 'parts', '*.parquet')))
+    total = 0
+    for path in tqdm(parts, desc='edgelist'):
+        out_path = os.path.join(out_dir, os.path.basename(path))
+        if os.path.exists(out_path):
+            total += pl.scan_parquet(out_path).select(pl.len()).collect().item()
+            continue
+        e = pl.read_parquet(path, columns=['citingcorpusid', 'citedcorpusid'])
+        out = (e.join(citing, on='citingcorpusid', how='left')
+               .join(cited, on='citedcorpusid', how='left'))
+        if out.height != e.height:
+            raise SystemExit(f'{path}: {e.height:,} edges in, {out.height:,} out -- '
+                             f'the year join multiplied rows, so every outcome '
+                             f'computed from it would be wrong')
+        out.write_parquet(out_path)
+        total += out.height
+    print(f'{len(parts)} parts, {total:,} edges -> {out_dir}', file=sys.stderr)
+    return out_dir
 
 
 def upload_parts(dataset: str, release_id: str = S2_RELEASE_ID,

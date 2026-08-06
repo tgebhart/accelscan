@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=500
+#SBATCH --mem=500gb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
 export PYTHONUNBUFFERED=TRUE
@@ -16,10 +16,9 @@ source activate accelscan
 #python -m accelscan.semanticscholar.preprocess --datasets papers authors abstracts
 #python -m accelscan.semanticscholar.preprocess --upload papers authors abstracts
 
-
 #python -m accelscan.semanticscholar.preprocess --datasets papers
 #python -m accelscan.semanticscholar.preprocess --upload papers
 
-#python -m accelscan.semanticscholar.preprocess --datasets authors
-#python -m accelscan.semanticscholar.preprocess --upload authors
+python -m accelscan.semanticscholar.preprocess --datasets authors
+python -m accelscan.semanticscholar.preprocess --upload authors
 

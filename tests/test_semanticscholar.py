@@ -85,8 +85,8 @@ def test_build_citation_edgelist_attaches_both_years(tmp_path):
 
     out = pp.build_citation_edgelist(release_id='2026-02-10',
                                      data_dir=str(tmp_path),
-                                     out_path=str(tmp_path / 'edges.parquet'))
-    df = pl.read_parquet(out)
+                                     out_dir=str(tmp_path / 'edges'))
+    df = pl.read_parquet(f'{out}/*.parquet')
     assert set(df.columns) == {'citingcorpusid', 'citedcorpusid',
                               'citingyear', 'citedyear'}
     assert df.height == 3, 'a left join must not drop edges with unknown endpoints'
@@ -95,6 +95,36 @@ def test_build_citation_edgelist_attaches_both_years(tmp_path):
     assert rows[(2, 1)] == (2019, 2015)
     assert rows[(3, 1)] == (2021, 2015)
     assert rows[(3, 99)] == (2021, None)
+
+
+def test_edgelist_refuses_duplicate_corpusid(tmp_path):
+    """A duplicated corpusid would multiply edges instead of annotating them, so
+    every outcome computed downstream would be silently inflated."""
+    proc = tmp_path / '2026-02-10' / 'processed'
+    (proc / 'papers' / 'parts').mkdir(parents=True)
+    (proc / 'citations' / 'parts').mkdir(parents=True)
+    pl.DataFrame({'corpusid': [1, 1], 'year': [2015, 2016]}) \
+        .write_parquet(proc / 'papers' / 'parts' / 'p0.parquet')
+    pl.DataFrame({'citingcorpusid': [1], 'citedcorpusid': [1]}) \
+        .write_parquet(proc / 'citations' / 'parts' / 'c0.parquet')
+    with pytest.raises(SystemExit, match='duplicate corpusid'):
+        pp.build_citation_edgelist(release_id='2026-02-10', data_dir=str(tmp_path),
+                                   out_dir=str(tmp_path / 'edges'))
+
+
+def test_edgelist_is_restartable(tmp_path):
+    proc = tmp_path / '2026-02-10' / 'processed'
+    (proc / 'papers' / 'parts').mkdir(parents=True)
+    (proc / 'citations' / 'parts').mkdir(parents=True)
+    pl.DataFrame({'corpusid': [1, 2], 'year': [2015, 2019]}) \
+        .write_parquet(proc / 'papers' / 'parts' / 'p0.parquet')
+    pl.DataFrame({'citingcorpusid': [2], 'citedcorpusid': [1]}) \
+        .write_parquet(proc / 'citations' / 'parts' / 'c0.parquet')
+    kw = dict(release_id='2026-02-10', data_dir=str(tmp_path),
+              out_dir=str(tmp_path / 'edges'))
+    first = pl.read_parquet(f'{pp.build_citation_edgelist(**kw)}/*.parquet')
+    again = pl.read_parquet(f'{pp.build_citation_edgelist(**kw)}/*.parquet')
+    assert first.rows() == again.rows(), 'a rerun must not duplicate or drop edges'
 
 
 AUTHORS = [

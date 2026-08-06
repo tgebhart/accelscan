@@ -49,8 +49,9 @@ DATE_VAR_CITING = "citingyear"
 DATE_VAR_CITED = "citedyear"
 GARBAGE_COLLECT = False
 DATE_TYPE = "year"
+# a DIRECTORY of parquet parts, not one file (32-bit row-count ceiling)
 CITATION_LOC = os.path.join(S2_DATA_DIR, S2_RELEASE_ID, "processed",
-                            "citations.parquet.gz")
+                            "citations_edges", "parts")
 SAVE_LOC = os.path.join(S2_DATA_DIR, S2_RELEASE_ID, "processed", "citation_outcomes")
 NWORKERS = max(1,mp.cpu_count() - 1)
 WRITE_EVERY = 5
@@ -88,7 +89,24 @@ def read_citation_csv(fileloc, low_memory=False, nrows=None, usecols=None, sep='
 
 @timer_func
 def read_citation_parquet(fileloc):
-    return pd.read_parquet(fileloc)
+    """Read a parquet file OR a directory of parquet parts, as pandas.
+
+    Two deviations from `pd.read_parquet(fileloc)`, both forced:
+
+    - The edge list is a *directory* of ~403 parts, because a single file cannot
+      hold it -- polars' streaming writer carries a 32-bit row counter and this
+      release has 1.42e9 edges (see preprocess.build_citation_edgelist).
+    - pyarrow is not installed in this environment, so `pd.read_parquet` has no
+      engine and `polars.to_pandas()` cannot be used either. Going through numpy
+      arrays avoids the dependency; nullable year columns land as float64, which
+      is what pandas would have produced anyway.
+    """
+    import polars as pl
+    pattern = (fileloc if fileloc.endswith('.parquet')
+               else os.path.join(fileloc, '*.parquet'))
+    df = pl.read_parquet(pattern)
+    print(f'read {df.height:,} edges from {pattern}')
+    return pd.DataFrame({c: df[c].to_numpy() for c in df.columns})
 
 
 def read_citations(fileloc):
@@ -96,7 +114,7 @@ def read_citations(fileloc):
         return read_citation_csv(fileloc)
     elif ".tsv" in fileloc:
         return read_citation_csv(fileloc, sep="\t")
-    elif ".parquet" in fileloc:
+    elif ".parquet" in fileloc or os.path.isdir(fileloc):
         return read_citation_parquet(fileloc)
     else:
         raise ValueError(f"File type {fileloc} not supported")

@@ -8,13 +8,8 @@
 #SBATCH --mem=500gb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
-##SBATCH --array=5,10
-# Citation/disruption outcomes, one array task per time horizon (the horizon IS
-# the array index). Needs slurm/s2_citations.txt to have produced the edge list.
-# Defaults already carry the Semantic Scholar column names, so no --citing_var etc.
-# After all tasks finish, aggregate the per-metric CSVs into the single table
-# accelscan.denominator reads:
-#   python -m accelscan.semanticscholar.aggregate --outcomes_dir <SAVE_LOC> --out <SAVE_LOC>/semanticscholar_outcomes.parquet.gz
+##SBATCH --array=3,5,10
+
 export PYTHONUNBUFFERED=TRUE
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
