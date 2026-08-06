@@ -91,8 +91,13 @@ sbatch slurm/cluster.txt               # BERTopic UMAP+HDBSCAN [msibigmem]
 ## Semantic Scholar metadata and citation outcomes
 
 `accelscan/semanticscholar/` rebuilds the tables the analytic stages read, ported
-from `novelty_corp` so this repo no longer depends on a sibling checkout. Only
-needed for a new S2 release — the 2026-02-10 tables are already on S3.
+from `novelty_corp` so this repo no longer depends on a sibling checkout.
+
+**`S2_RELEASE_ID` is `2026-07-28`, and those tables are not on S3 yet.** The
+prefixes are read, not created, by the analytic stages, so run the download below
+before `denominator`/`compute`/`embed` — or export `S2_RELEASE_ID=2026-02-10` to
+pin back to the previous tables, which are still there (papers 60 parts, abstracts
+30).
 
 ```bash
 # 1. papers + abstracts + authors -> local parquet parts -> S3  [msibigmem, ~1 day]
@@ -110,7 +115,7 @@ python -m accelscan.semanticscholar.aggregate \
   --out data/semanticscholar/$S2_RELEASE_ID/processed/citation_outcomes/semanticscholar_outcomes.parquet.gz
 ```
 
-- `S2_RELEASE_ID` (default `2026-02-10`) drives `PAPERS_PREFIX`/`ABSTRACTS_PREFIX`,
+- `S2_RELEASE_ID` (default `2026-07-28`) drives `PAPERS_PREFIX`/`ABSTRACTS_PREFIX`/`AUTHORS_PREFIX`,
   so a re-download cannot leave the analytic stages reading the previous release.
   `S2_API_KEY` is optional but strongly advised; `ACCELSCAN_OUTCOMES_PATH` overrides
   where `denominator` looks for the outcomes table.

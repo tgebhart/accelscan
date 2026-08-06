@@ -12,9 +12,12 @@ OUT_PREFIX = 'accelscan'
 
 # --- Semantic Scholar bulk release -----------------------------------------
 # One release id drives the metadata prefixes, so a re-download cannot leave the
-# analytic stages reading last release's tables. Both strings below are
-# byte-identical to the hardcoded ones they replace at release 2026-02-10.
-S2_RELEASE_ID = os.environ.get('S2_RELEASE_ID', '2026-02-10')
+# analytic stages reading last release's tables. 2026-07-28 is the latest release
+# the bulk API offers as of 2026-08-06; the previous tables (2026-02-10) are still
+# on S3, so `S2_RELEASE_ID=2026-02-10` in the environment pins back to them --
+# which is what to do until slurm/s2_download.txt has run for the new release,
+# because these prefixes are read, not created, by the analytic stages.
+S2_RELEASE_ID = os.environ.get('S2_RELEASE_ID', '2026-07-28')
 S2_DATA_DIR = os.environ.get('S2_DATA_DIR', 'data/semanticscholar')
 S2_API_BASE = 'https://api.semanticscholar.org/datasets/v1/release/'
 S2_PROCESSED_PREFIX = f'data/semanticscholar/{S2_RELEASE_ID}/processed'
