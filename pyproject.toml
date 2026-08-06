@@ -21,6 +21,11 @@ gpu = ["vllm>=0.8"]
 # already pulled by [gpu]; NOT `adapters` — it pins transformers<5 and breaks
 # the vLLM env, so embed.py uses the base specter2 encoder.
 cluster = ["bertopic>=0.16", "umap-learn>=0.5", "hdbscan>=0.8", "scikit-learn>=1.5"]
+# Registry generators (Wikipedia/Epoch scrape) and the Semantic Scholar bulk
+# tooling. Kept out of the core deps because stage 1 runs on EC2 with a minimal
+# install and needs neither.
+registry = ["pandas>=2.0", "requests>=2.31", "beautifulsoup4>=4.12", "lxml>=5.0"]
+s2 = ["requests>=2.31", "pandas>=2.0", "numpy>=1.26"]
 dev = ["pytest>=8.0"]
 
 [build-system]

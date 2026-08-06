@@ -88,6 +88,38 @@ sbatch slurm/embed_specter2.txt        # SPECTER2 abstract embeddings [GPU]
 sbatch slurm/cluster.txt               # BERTopic UMAP+HDBSCAN [msibigmem]
 ```
 
+## Semantic Scholar metadata and citation outcomes
+
+`accelscan/semanticscholar/` rebuilds the tables the analytic stages read, ported
+from `novelty_corp` so this repo no longer depends on a sibling checkout. Only
+needed for a new S2 release — the 2026-02-10 tables are already on S3.
+
+```bash
+# 1. papers + abstracts -> local parquet parts -> S3  [msibigmem, ~1 day]
+#    (one part at a time: download, parse, write parquet, delete the raw file)
+sbatch slurm/s2_download.txt
+
+# 2. citations (~2 TB streamed) + the year-annotated edge list  [msibigmem, up to 4 days]
+#    Only needed to rebuild citation outcomes; papers/abstracts do not depend on it.
+sbatch slurm/s2_citations.txt
+
+# 3. outcomes, one array task per time horizon, then aggregate to one table
+sbatch --array=5,10 slurm/s2_outcomes.txt
+python -m accelscan.semanticscholar.aggregate \
+  --outcomes_dir data/semanticscholar/$S2_RELEASE_ID/processed/citation_outcomes \
+  --out data/semanticscholar/$S2_RELEASE_ID/processed/citation_outcomes/semanticscholar_outcomes.parquet.gz
+```
+
+- `S2_RELEASE_ID` (default `2026-02-10`) drives `PAPERS_PREFIX`/`ABSTRACTS_PREFIX`,
+  so a re-download cannot leave the analytic stages reading the previous release.
+  `S2_API_KEY` is optional but strongly advised; `ACCELSCAN_OUTCOMES_PATH` overrides
+  where `denominator` looks for the outcomes table.
+- The `outcomes.py` algorithm is a verbatim port of the lab's `citation_outcomes.py`.
+  Only the defaults changed (to the S2 column names), deliberately: editing the
+  computation would make these numbers incomparable to the patent work.
+- Preprocessing writes locally; **`--upload` is what makes a release usable**, since
+  every stage reads these prefixes from S3, not from disk.
+
 ## Capacity estimands (stage 3.5)
 
 `accelscan/compute.py` joins per-device specs to used-in-this-work mentions:

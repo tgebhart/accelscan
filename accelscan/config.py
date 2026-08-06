@@ -8,9 +8,25 @@ import os
 
 BUCKET = 'scirec-embeddings'
 S2ORC_PREFIX = 's2orc_v2/'
-PAPERS_PREFIX = 'data/semanticscholar/2026-02-10/processed/papers/parts/'
-ABSTRACTS_PREFIX = 'data/semanticscholar/2026-02-10/processed/abstracts/parts/'
 OUT_PREFIX = 'accelscan'
+
+# --- Semantic Scholar bulk release -----------------------------------------
+# One release id drives the metadata prefixes, so a re-download cannot leave the
+# analytic stages reading last release's tables. Both strings below are
+# byte-identical to the hardcoded ones they replace at release 2026-02-10.
+S2_RELEASE_ID = os.environ.get('S2_RELEASE_ID', '2026-02-10')
+S2_DATA_DIR = os.environ.get('S2_DATA_DIR', 'data/semanticscholar')
+S2_API_BASE = 'https://api.semanticscholar.org/datasets/v1/release/'
+S2_PROCESSED_PREFIX = f'data/semanticscholar/{S2_RELEASE_ID}/processed'
+PAPERS_PREFIX = f'{S2_PROCESSED_PREFIX}/papers/parts/'
+ABSTRACTS_PREFIX = f'{S2_PROCESSED_PREFIX}/abstracts/parts/'
+# Citation/disruption outcomes, produced by accelscan.semanticscholar.aggregate.
+# Defaults to the lab table the analytic stage has always read, so nothing moves
+# until a fresh one is built.
+OUTCOMES_PATH = os.environ.get(
+    'ACCELSCAN_OUTCOMES_PATH',
+    '/projects/standard/funkr/gebhart/projects/rfunklab/novelty_corp/data'
+    '/semanticscholar/processed/citation_outcomes/semanticscholar_outcomes.parquet.gz')
 
 
 # Paragraphs matched per paper caps (stage 1). Papers whose only hits are
@@ -26,6 +42,13 @@ GATE_WINDOW_CHARS = 250
 # 2026-07-31 run). scan._assemble_passage now also windows on the match, so this is
 # belt and braces, but the ordering is asserted in tests/test_scan.py.
 SPLIT_LONG_PARA_CHARS = PASSAGE_CHAR_CAP
+
+
+def s2_api_key() -> str | None:
+    """Semantic Scholar bulk-API key. Optional: the API serves dataset listings
+    unauthenticated but rate-limits them hard, so a key is strongly advised for a
+    full download. Never hardcode it -- put S2_API_KEY in .env."""
+    return os.environ.get('S2_API_KEY')
 
 
 def s3_config() -> dict:

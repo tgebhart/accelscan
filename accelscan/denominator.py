@@ -33,16 +33,15 @@ import sys
 
 import polars as pl
 
-from accelscan.config import BUCKET
+from accelscan.config import BUCKET, OUTCOMES_PATH
 from accelscan.meta import paper_fields
 from accelscan.paths import (ARXIV, S2ORC, Corpus, analytic_base, get_corpus,
                             inventory_glob)
 
-# Precomputed citation/disruption outcomes (lab table): i_k = cumulative
-# citations k years post-publication; cd_k = CD (disruption) index.
-OUTCOMES_PATH = ('/projects/standard/funkr/gebhart/projects/rfunklab/novelty_corp/data'
-                 '/semanticscholar/processed/citation_outcomes'
-                 '/semanticscholar_outcomes.parquet.gz')
+# Citation/disruption outcomes: i_k = cumulative citations k years
+# post-publication, cd_k = CD (disruption) index. Defaults to the lab table this
+# has always read; rebuildable in-repo via accelscan.semanticscholar (see
+# config.OUTCOMES_PATH / ACCELSCAN_OUTCOMES_PATH).
 CITATION_WINDOW = 5
 CITATION_CUTOFF = 2020        # focal papers <= this year have a complete 5-yr window
 USED = 'used-in-this-work'

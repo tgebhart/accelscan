@@ -1,0 +1,22 @@
+#!/bin/bash -l
+#SBATCH --time=96:00:00
+#SBATCH -p msibigmem
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=1000gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+# The citations dataset is the expensive one: billions of edges, ~2 TB of raw
+# .jsonl.gz streamed through (one part at a time, each deleted after parsing).
+# --edgelist then attaches citing/cited publication years, which is the input
+# accelscan.semanticscholar.outcomes consumes. Run this only to rebuild outcomes
+# for a new release; papers/abstracts do not depend on it.
+export PYTHONUNBUFFERED=TRUE
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+python -m accelscan.semanticscholar.preprocess --datasets citations
+python -m accelscan.semanticscholar.preprocess --edgelist
