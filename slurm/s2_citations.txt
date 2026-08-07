@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=1000gb
+#SBATCH --mem=500gb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
 

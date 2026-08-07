@@ -91,22 +91,57 @@ def read_citation_csv(fileloc, low_memory=False, nrows=None, usecols=None, sep='
 def read_citation_parquet(fileloc):
     """Read a parquet file OR a directory of parquet parts, as pandas.
 
-    Two deviations from `pd.read_parquet(fileloc)`, both forced:
+    Three deviations from `pd.read_parquet(fileloc)`, all forced:
 
-    - The edge list is a *directory* of ~403 parts, because a single file cannot
-      hold it -- polars' streaming writer carries a 32-bit row counter and this
-      release has 1.42e9 edges (see preprocess.build_citation_edgelist).
-    - pyarrow is not installed in this environment, so `pd.read_parquet` has no
-      engine and `polars.to_pandas()` cannot be used either. Going through numpy
-      arrays avoids the dependency; nullable year columns land as float64, which
-      is what pandas would have produced anyway.
+    - The edge list is a *directory* of ~403 parts: a single file cannot hold it,
+      because polars' writer carries a 32-bit row counter and this release has
+      1,416,420,846 edges (see preprocess.build_citation_edgelist).
+    - pyarrow is not installed here, so `pd.read_parquet` has no engine and
+      `polars.to_pandas()` cannot be used either.
+    - Reading the whole glob at once and calling `to_numpy` on the result panics
+      ("Polars' maximum length reached") inside the rechunk of a 403-chunk column,
+      after ~280 GB of RSS. So parts are read, filtered and converted ONE AT A
+      TIME, and only fixed-width numpy arrays are concatenated.
+
+    Rows with a null year on either endpoint are dropped here. That is exactly
+    neutral, not a shortcut: `read_citations_from_file` immediately requires
+    `citing_year >= cited_year` and `citing_year` within [start_year, end_year],
+    all of which are False for NaN, and its `start_year` default is a `.min()`
+    that skips NaN. Dropping them early removes ~12% of rows and, with no nulls
+    left, lets the year columns be Int32 instead of float64.
     """
+    import glob
+
+    import numpy as np
     import polars as pl
-    pattern = (fileloc if fileloc.endswith('.parquet')
-               else os.path.join(fileloc, '*.parquet'))
-    df = pl.read_parquet(pattern)
-    print(f'read {df.height:,} edges from {pattern}')
-    return pd.DataFrame({c: df[c].to_numpy() for c in df.columns})
+
+    paths = ([fileloc] if fileloc.endswith('.parquet')
+             else sorted(glob.glob(os.path.join(fileloc, '*.parquet'))))
+    if not paths:
+        raise ValueError(f'no parquet parts under {fileloc}')
+
+    chunks, seen, kept = [], 0, 0
+    for path in tqdm(paths, desc='reading edges'):
+        d = pl.read_parquet(path)
+        seen += d.height
+        year_cols = [c for c in d.columns if c.endswith('year')]
+        d = d.drop_nulls(year_cols)
+        # Int32, not Int16: a garbage year like 202600 would overflow Int16
+        # silently, whereas a strict cast to Int32 raises.
+        d = d.with_columns([pl.col(c).cast(pl.Int32) for c in year_cols])
+        kept += d.height
+        chunks.append({c: d[c].to_numpy() for c in d.columns})
+        del d
+
+    cols = list(chunks[0])
+    out = {}
+    for c in cols:                       # column at a time, freeing as we go
+        out[c] = np.concatenate([ch[c] for ch in chunks])
+        for ch in chunks:
+            del ch[c]
+    print(f'read {seen:,} edges from {len(paths)} parts, kept {kept:,} '
+          f'({100 * kept / max(seen, 1):.1f}%) with both years known')
+    return pd.DataFrame(out, copy=False)
 
 
 def read_citations(fileloc):
@@ -132,12 +167,15 @@ def format_columns(df, date_type, date_var_citing, date_var_cited):
         df["citing_year"] = df["citing_year"].dt.year
         df["cited_year"] = df["cited_year"].dt.year
     elif date_type == "year":
-        df["citing_year"] = df["citing_year"].apply(
-            lambda x: int(x) if not pd.isnull(x) else np.nan
-        )
-        df["cited_year"] = df["cited_year"].apply(
-            lambda x: int(x) if not pd.isnull(x) else np.nan
-        )
+        # Fast path, semantically a no-op: the apply below int-casts non-null
+        # values and leaves NaN, so a column that is ALREADY an integer dtype
+        # (which read_citation_parquet now guarantees, having dropped nulls) is
+        # unchanged by it. Skipping matters because .apply is a Python-level pass
+        # over 1.25e9 rows -- hours before the real computation starts.
+        for col in ("citing_year", "cited_year"):
+            if pd.api.types.is_integer_dtype(df[col]):
+                continue
+            df[col] = df[col].apply(lambda x: int(x) if not pd.isnull(x) else np.nan)
     else:
         raise ValueError(f"Date type {date_type} not supported.")
     return df
