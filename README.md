@@ -93,11 +93,11 @@ sbatch slurm/cluster.txt               # BERTopic UMAP+HDBSCAN [msibigmem]
 `accelscan/semanticscholar/` rebuilds the tables the analytic stages read, ported
 from `novelty_corp` so this repo no longer depends on a sibling checkout.
 
-**`S2_RELEASE_ID` is `2026-07-28`, and those tables are not on S3 yet.** The
-prefixes are read, not created, by the analytic stages, so run the download below
-before `denominator`/`compute`/`embed` — or export `S2_RELEASE_ID=2026-02-10` to
-pin back to the previous tables, which are still there (papers 60 parts, abstracts
-30).
+**`S2_RELEASE_ID` is `2026-07-28`. On S3: papers (60 parts) and authors (30) are
+up; abstracts are NOT** — so `embed` still needs them uploaded, while
+`denominator`/`compute` are fine. These prefixes are read, not created, by the
+analytic stages. `S2_RELEASE_ID=2026-02-10` pins back to the previous release
+(papers 60, abstracts 30, no authors).
 
 ```bash
 # 1. papers + abstracts + authors -> local parquet parts -> S3  [msibigmem, ~1 day]
@@ -108,20 +108,31 @@ sbatch slurm/s2_download.txt
 #    Only needed to rebuild citation outcomes; papers/abstracts do not depend on it.
 sbatch slurm/s2_citations.txt
 
-# 3. outcomes, one array task per time horizon, then aggregate to one table
-sbatch --array=5,10 slurm/s2_outcomes.txt
-python -m accelscan.semanticscholar.aggregate \
-  --outcomes_dir data/semanticscholar/$S2_RELEASE_ID/processed/citation_outcomes \
-  --out data/semanticscholar/$S2_RELEASE_ID/processed/citation_outcomes/semanticscholar_outcomes.parquet.gz
+# 3. forward-citation outcomes (i_1/i_3/i_5/i_10 + bcites), ~25 min.
+#    NO --array: it computes every horizon in one pass and writes the joined table
+#    denominator.py reads, so aggregate.py is not in the path.
+sbatch slurm/s2_outcomes_fast.txt
 ```
 
 - `S2_RELEASE_ID` (default `2026-07-28`) drives `PAPERS_PREFIX`/`ABSTRACTS_PREFIX`/`AUTHORS_PREFIX`,
   so a re-download cannot leave the analytic stages reading the previous release.
   `S2_API_KEY` is optional but strongly advised; `ACCELSCAN_OUTCOMES_PATH` overrides
   where `denominator` looks for the outcomes table.
-- The `outcomes.py` algorithm is a verbatim port of the lab's `citation_outcomes.py`.
-  Only the defaults changed (to the S2 column names), deliberately: editing the
-  computation would make these numbers incomparable to the patent work.
+- **Forward citations are computed by `fast_outcomes.py`, not `outcomes.py`.** The
+  release's edge list is 5.71e9 raw / 4.87e9 after filters, and the lab's
+  dict-of-sets/year-loop cannot process that (it ran 11 h without progress). For
+  `i_k` and `bcites` the computation reduces to a group-by, which
+  `tests/test_fast_outcomes.py` pins against `outcomes.run()` on a fixture graph.
+  `outcomes.py` remains for `cd_k`, which needs 2-hop set intersections.
+- **No disruption/CD index going forward.** Nothing in the analysis used it, and
+  computing it at this graph size needs either a focal-scoped 2-hop subset or
+  ~1.75 TB. `denominator` no longer reads `cd_5`/`cd_10`.
+- The lab's 2026-02-10 outcomes table was built from a **truncated** edge list: on
+  papers published 2010–2014, whose citations cannot since have grown, it holds 53%
+  of what the complete graph shows and omits 43% of a sampled 288 entirely. The
+  cause is two chained `how='right'` merges in the original edge-list build, which
+  drop edges rather than annotate them; `build_citation_edgelist` uses left joins and
+  asserts row preservation per part.
 - Preprocessing writes locally; **`--upload` is what makes a release usable**, since
   every stage reads these prefixes from S3, not from disk.
 - `authors` (`AUTHORS_PREFIX`) carries name, affiliations, ORCID/DBLP, papercount,
@@ -270,7 +281,7 @@ Writes to `s3://…/accelscan/analytic/{registry}/{prompt}/{model_tag}/`:
 |---|---|---|
 | `denominator` | 12,408,584 | one row per S2ORC full-text paper: year, field, `is_candidate`. **The population** — required so prevalence shares have a correct base. |
 | `paper_flags` | 352,822 | per-paper accelerator numerators: any mention / reported use / model-specific, manufacturers, subtypes, model vintage, max device count. |
-| `citations` | 347,829 | `citations_5y` (`i_5`) and `disruption_5y` (`cd_5`, CD index) from the lab's precomputed outcomes table, plus `window_complete` (≤2020) and `has_outcomes` (83.4% match). |
+| `citations` | 347,829 | `citations_5y` (`i_5`) plus `i_1`/`i_3`/`i_10`/`bcites`, from the outcomes table `accelscan.semanticscholar.fast_outcomes` builds, with `window_complete` (≤2020) and `has_outcomes`. No CD/disruption index: it needs 2-hop set intersections over a 5.7e9-edge graph and nothing here used it. |
 
 Very large inputs (papers, citations) are read part-by-part (`_by_part`) so memory
 stays bounded regardless of table size.

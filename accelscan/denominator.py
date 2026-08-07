@@ -10,11 +10,12 @@ share, so it must cover papers with NO accelerator mention.
 work, model-specific vs generic-only, manufacturer set, newest/oldest model
 vintage. Built from mentions + registry canonicalization.
 
-`citations` — forward-citation and disruption outcomes for accelerator papers,
-read from the lab's precomputed outcomes table (`i_k` = cumulative citations k
-years after publication, so `i_5` is the 5-year window; `cd_k` = CD/disruption
-index). Papers published after CITATION_CUTOFF have incomplete windows and are
-flagged rather than dropped.
+`citations` — forward-citation outcomes for accelerator papers, read from the
+outcomes table built by `accelscan.semanticscholar.fast_outcomes` (`i_k` =
+cumulative citations k years after publication, so `i_5` is the 5-year window).
+Papers published after CITATION_CUTOFF have incomplete windows and are flagged
+rather than dropped. Disruption (CD index) was dropped deliberately: it needs
+2-hop set intersections over a 5.7e9-edge graph, and no analysis here used it.
 
 Big tables are handled part-by-part (the papers table is far too large to
 materialize whole — see `accelscan.meta.read_by_part`).
@@ -38,9 +39,8 @@ from accelscan.meta import paper_fields
 from accelscan.paths import (ARXIV, S2ORC, Corpus, analytic_base, get_corpus,
                             inventory_glob)
 
-# Citation/disruption outcomes: i_k = cumulative citations k years
-# post-publication, cd_k = CD (disruption) index. Defaults to the lab table this
-# has always read; rebuildable in-repo via accelscan.semanticscholar (see
+# Forward citations: i_k = cumulative citations k years post-publication.
+# Rebuildable in-repo via accelscan.semanticscholar.fast_outcomes (see
 # config.OUTCOMES_PATH / ACCELSCAN_OUTCOMES_PATH).
 CITATION_WINDOW = 5
 CITATION_CUTOFF = 2020        # focal papers <= this year have a complete 5-yr window
@@ -107,16 +107,16 @@ def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
 
 
 def build_citations(so: dict, client, focal: pl.DataFrame) -> pl.DataFrame:
-    """Citation + disruption outcomes for `focal` (corpusid, year).
+    """Forward-citation outcomes for `focal` (corpusid, year).
 
     Uses the lab's precomputed outcomes table rather than re-deriving windows
     from the 361-part edge list: `i_k` is cumulative citations k years post
     publication (i_5 = the 5-year window used in the paper) and `cd_k` is the
-    CD/disruption index. Left-joined, so papers absent from the outcomes build
-    (mostly the newest ones) stay present with nulls and are flagged.
+    Left-joined, so papers absent from the outcomes build (mostly the newest
+    ones) stay present with nulls and are flagged.
     """
     focal = focal.filter(pl.col('year').is_not_null()).select('corpusid', 'year')
-    keep = ['i_1', 'i_3', 'i_5', 'i_10', 'cd_5', 'cd_10', 'bcites_300']
+    keep = ['i_1', 'i_3', 'i_5', 'i_10', 'bcites']
     oc = (pl.scan_parquet(OUTCOMES_PATH)
           .select(['record_id'] + keep)
           .with_columns(corpusid=pl.col('record_id').cast(pl.Int64, strict=False))
@@ -126,7 +126,7 @@ def build_citations(so: dict, client, focal: pl.DataFrame) -> pl.DataFrame:
     print(f'outcomes matched: {oc.height:,} of {focal.height:,} focal papers '
           f'({100*oc.height/max(focal.height,1):.1f}%)', file=sys.stderr)
     return (focal.join(oc, on='corpusid', how='left')
-            .rename({'i_5': 'citations_5y', 'cd_5': 'disruption_5y'})
+            .rename({'i_5': 'citations_5y'})
             .with_columns(
                 window_complete=pl.col('year') <= CITATION_CUTOFF,
                 has_outcomes=pl.col('citations_5y').is_not_null()))

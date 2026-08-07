@@ -24,13 +24,16 @@ S2_PROCESSED_PREFIX = f'data/semanticscholar/{S2_RELEASE_ID}/processed'
 PAPERS_PREFIX = f'{S2_PROCESSED_PREFIX}/papers/parts/'
 ABSTRACTS_PREFIX = f'{S2_PROCESSED_PREFIX}/abstracts/parts/'
 AUTHORS_PREFIX = f'{S2_PROCESSED_PREFIX}/authors/parts/'
-# Citation/disruption outcomes, produced by accelscan.semanticscholar.aggregate.
-# Defaults to the lab table the analytic stage has always read, so nothing moves
-# until a fresh one is built.
+# Forward-citation outcomes (i_k), produced by
+# accelscan.semanticscholar.fast_outcomes over the release's own citation edge list.
+# This replaces the lab's 2026-02-10 table, which was built from a truncated edge
+# list: for papers published 2010-2014, whose citation counts cannot since have
+# grown, it held 53% of the citations the complete graph shows, and 43% of a sampled
+# 288 were absent from it entirely.
 OUTCOMES_PATH = os.environ.get(
     'ACCELSCAN_OUTCOMES_PATH',
-    '/projects/standard/funkr/gebhart/projects/rfunklab/novelty_corp/data'
-    '/semanticscholar/processed/citation_outcomes/semanticscholar_outcomes.parquet.gz')
+    f'{S2_DATA_DIR}/{S2_RELEASE_ID}/processed/citation_outcomes'
+    '/semanticscholar_outcomes.parquet.gz')
 
 
 # Paragraphs matched per paper caps (stage 1). Papers whose only hits are

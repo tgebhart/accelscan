@@ -522,8 +522,9 @@ from the same partial year.
 
 Citation outcomes are attached only to S2ORC, from a precomputed
 outcomes table keyed on Semantic Scholar identifiers, supplying cumulative
-citations $k$ years post-publication ($i_k$) and the CD disruption index
-($cd_k$). The primary window is five years, so papers published after 2020 have an
+citations $k$ years post-publication ($i_k$). We report no disruption/CD index:
+computing it requires two-hop set intersections over a $5.7\times10^9$-edge
+citation graph, and no analysis in the paper rests on it. The primary window is five years, so papers published after 2020 have an
 incomplete window; they are flagged rather than dropped, and excluded when a
 citation series is read. The arXiv pipeline deliberately maps no arXiv
 identifier onto Semantic Scholar, so the arXiv corpus carries no citation
