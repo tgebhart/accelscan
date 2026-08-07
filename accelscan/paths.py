@@ -124,6 +124,27 @@ def precision_key(c: Corpus, candidates_version: str) -> str:
     return f'{c.out_prefix}/precision/{candidates_version}/paper_precision.parquet'
 
 
+# --- stage 4b: authorship ---------------------------------------------------
+# The crosswalk is namespaced by the Semantic Scholar *release*, not the registry
+# version: it is a property of the metadata snapshot (which papers have which
+# author ids), like `inventory`, so a registry bump must not orphan it. The
+# author-year panel IS registry-namespaced, because its access columns come from
+# the capacity table.
+
+def authorship_crosswalk_parts(c: Corpus, release_id: str) -> str:
+    return f'{c.out_prefix}/authorship/{release_id}/crosswalk/parts'
+
+
+def authorship_crosswalk_glob(c: Corpus, release_id: str) -> str:
+    return s3_uri(f'{authorship_crosswalk_parts(c, release_id)}/*.parquet')
+
+
+def author_analytic_key(c: Corpus, registry_version: str, prompt_version: str,
+                        model_tag: str, name: str) -> str:
+    return (f'{analytic_base(c, registry_version, prompt_version, model_tag)}'
+            f'/authors/{name}.parquet')
+
+
 # --- topic pipeline --------------------------------------------------------
 
 def embeddings_parts(c: Corpus, embed_tag: str) -> str:

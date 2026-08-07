@@ -286,6 +286,35 @@ Writes to `s3://…/accelscan/analytic/{registry}/{prompt}/{model_tag}/`:
 Very large inputs (papers, citations) are read part-by-part (`_by_part`) so memory
 stays bounded regardless of table size.
 
+## Stage 4b: author panel (`accelscan/authorship.py`)
+
+```bash
+sbatch slurm/s2_authorship.txt         # crosswalk, then panel for both count policies
+python -m accelscan.authorship --step crosswalk     # (corpusid, authorid) rows
+python -m accelscan.authorship --step panel         # author-year panel + jumps
+```
+
+| product | key | contents |
+|---|---|---|
+| `authorship/{release}/crosswalk/parts` | S2 **release** | papers x `authors` exploded: `corpusid, authorid, author_pos, n_authors, year, field, fulltext`. Registry-independent, so it can run before/independently of a re-extraction. |
+| `analytic/{rv}/{pv}/{tag}/authors/author_year_{policy}` | registry version | author-year panel, **densified over each author's active span** so zero-output years exist: output counts, `cit_i3_*`, reported-access max/stock (running max, and a 3-yr window variant), `control_sample`. |
+| `analytic/…/authors/author_jumps_{policy}` | registry version | first `ratio_jump` / `dc_first` / `gpu_first` event per author, with the papers that carried it, team size, and `coauthor_sourced`. |
+
+Access is the **max reported FP32 over the author's used-accelerator papers that
+year**, and is null — never 0 — when nothing was reported, so the inequality
+figures measure inequality among users rather than adoption. Non-full-text papers
+count toward output but never toward access: they were never scanned, so they are
+not evidence of its absence.
+
+The never-GPU control arm is drawn from a **hash-bounded** id subsample
+(`hash_pool`): deterministic and rerunnable, but not the full universe of
+non-users. Strata short of the 5x target are printed, not silently tolerated.
+
+`event_study` demeans each jumper against its own pre-period (tau in −5..−2,
+excluding −1 for anticipation), subtracts the matched-control trend, and block-
+bootstraps over jumpers. **Nothing here is causal** — see the caveats cell in
+`authors.ipynb`.
+
 ## Notebooks (one per paper section)
 
 | notebook | section | contents |
@@ -295,6 +324,7 @@ stays bounded regardless of table size.
 | `productivity.ipynb` | §6 | paper support (count + per year since release, support over device life), **productive half-life with CIs + censoring + per-model diagnostics**, adoption lag by generation, 3-yr citation support, rank-stability |
 | `gpu_topics.ipynb` | §7 | GPU overlay on SPECTER2/BERTopic topics (frontier-lag by topic, segment mix) |
 | `manufacturer.ipynb` | §8 | vendor shares, HHI/entropy, **CUDA lock-in proxy**, multi-vendor papers, **export-control parts (A800/H800/H20)** |
+| `authors.ipynb` | — | author-level access inequality (Lorenz/Gini/Theil, mobility), jump descriptives, **event study around FLOP/VRAM jumps with two control arms**, coauthor decomposition, placebo + threshold/policy robustness |
 | `gpu_usage.ipynb` | — | original exploratory manufacturer/model view |
 
 Every notebook starts with a chdir-to-repo-root guard (they use repo-relative
@@ -321,7 +351,7 @@ which patches `plt.show` once so no plot cell carries figure bookkeeping. It:
 Re-render everything:
 
 ```bash
-for nb in trends capacity productivity gpu_topics manufacturer gpu_usage; do jupyter nbconvert --to notebook --inplace --execute --ExecutePreprocessor.timeout=1800 notebooks/$nb.ipynb; done
+for nb in trends capacity productivity gpu_topics manufacturer authors gpu_usage; do jupyter nbconvert --to notebook --inplace --execute --ExecutePreprocessor.timeout=1800 notebooks/$nb.ipynb; done
 ```
 
 Remaining stub: `accelscan/panels.py` (tidy year×field×model export panels).

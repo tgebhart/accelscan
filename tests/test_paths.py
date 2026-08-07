@@ -14,6 +14,8 @@ version scan, and `scan.run_s3`'s `.done` diff stay corpus-safe.
 import pytest
 
 from accelscan.paths import (ARXIV, S2ORC, analytic_base, arxiv_metadata_key,
+                            author_analytic_key, authorship_crosswalk_glob,
+                            authorship_crosswalk_parts,
                             candidates_glob, candidates_parts, candidates_root,
                             capacity_key, clusters_base, embeddings_chunk,
                             embeddings_parts, get_corpus, ingest_stats_key,
@@ -44,6 +46,13 @@ S2ORC_EXPECTED = [
      'accelscan/embeddings/specter2-base/parts/chunk_0012'),
     (clusters_base(S2ORC, 'specter2-base-mcs50-ms5-ro'),
      'accelscan/clusters/specter2-base-mcs50-ms5-ro'),
+    # authorship: crosswalk keyed by S2 RELEASE (a property of the metadata
+    # snapshot), panel keyed by registry version (its access columns come from
+    # the capacity table)
+    (authorship_crosswalk_parts(S2ORC, '2026-07-28'),
+     'accelscan/authorship/2026-07-28/crosswalk/parts'),
+    (author_analytic_key(S2ORC, RV, PV, TAG, 'author_year_floor1'),
+     'accelscan/analytic/0.2.0/p1/qwen3-14b/authors/author_year_floor1.parquet'),
 ]
 
 
@@ -56,6 +65,8 @@ def test_globs_are_s3_uris():
     assert inventory_glob(S2ORC) == 's3://scirec-embeddings/accelscan/inventory/parts/*.parquet'
     assert candidates_glob(S2ORC, RV) == (
         's3://scirec-embeddings/accelscan/candidates/0.2.0/parts/*.parquet')
+    assert authorship_crosswalk_glob(S2ORC, '2026-07-28') == (
+        's3://scirec-embeddings/accelscan/authorship/2026-07-28/crosswalk/parts/*.parquet')
     assert s3_uri('a/b') == 's3://scirec-embeddings/a/b'
 
 
@@ -68,6 +79,8 @@ ARXIV_KEYS = [
     embeddings_parts(ARXIV, 'specter2-base'),
     embeddings_chunk(ARXIV, 'specter2-base', 12),
     clusters_base(ARXIV, 'v1'), arxiv_metadata_key(),
+    authorship_crosswalk_parts(ARXIV, '2026-07-28'),
+    author_analytic_key(ARXIV, RV, PV, TAG, 'author_year_floor1'),
     ingest_stats_key('arXiv_src_2301_001'),
 ]
 S2ORC_KEYS = [k for k, _ in S2ORC_EXPECTED]
