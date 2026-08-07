@@ -63,7 +63,17 @@ def spec_frame(reg: CompiledRegistry) -> pl.DataFrame:
 
 def winsorize_counts(mentions: pl.DataFrame, year_col: str = 'year',
                      policy: str = 'floor1') -> pl.DataFrame:
-    """Add `n_dev`: device_count winsorized within year, per count policy."""
+    """Add `n_dev`: device_count winsorized within year, per count policy.
+
+    Floored at 1 as well as capped. A mention that reports a device as used in
+    this work implies at least one device, but the extractor rounds fractional
+    hardware reports to 0 — "one-half Nvidia Tesla K80", "0.04 GPU days",
+    "a server without GPUs" (74 used-mentions in the v0.4.0 extraction). Without
+    the floor those become `n_dev = 0`, and every capacity axis for the paper
+    comes out as an exact 0 rather than a missing value: a nonsense point that
+    survives into log-scale figures and the Gini input, because it is not null
+    and `spec_missing_*` is False (the spec was found; the count was junk).
+    """
     if policy == 'explicit':
         mentions = mentions.filter(pl.col('device_count_basis') == 'explicit')
     caps = (mentions.filter(pl.col('device_count').is_not_null())
@@ -76,7 +86,7 @@ def winsorize_counts(mentions: pl.DataFrame, year_col: str = 'year',
         .otherwise(pl.min_horizontal(
             pl.col('device_count').cast(pl.Float64),
             pl.col('cap').fill_null(HARD_DEVICE_CAP),
-            pl.lit(float(HARD_DEVICE_CAP)))))
+            pl.lit(float(HARD_DEVICE_CAP))).clip(lower_bound=1.0)))
     return out.drop('cap')
 
 
@@ -108,6 +118,7 @@ def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame,
         reported_vram_gb=(pl.col('n_dev') * pl.col('vram_eff')).sum(),
         reported_tdp_w=(pl.col('n_dev') * pl.col('tdp_w')).sum(),
         spec_missing_vram=pl.col('vram_eff').is_null().all(),
+        spec_missing_tdp=pl.col('tdp_w').is_null().all(),
         max_devices=pl.col('n_dev').max(),
         total_devices=pl.col('n_dev').sum(),
         n_models=pl.col('canonical_model').n_unique(),
@@ -122,9 +133,15 @@ def paper_capacity(mentions: pl.DataFrame, specs: pl.DataFrame,
         agg = agg.with_columns(
             pl.when(pl.col(f'spec_missing_{axis}')).then(None)
             .otherwise(pl.col(f'reported_{axis}_gflops')).alias(f'reported_{axis}_gflops'))
+    # vram and tdp need the same treatment as the FLOPS axes: polars sums a
+    # column of nulls to 0, so without this an all-null spec publishes an exact
+    # 0 GB / 0 W as if it were measured. (tdp is unused by any notebook today;
+    # the power sidebar in the plan would have inherited the bug.)
     return agg.with_columns(
         pl.when(pl.col('spec_missing_vram')).then(None)
-        .otherwise(pl.col('reported_vram_gb')).alias('reported_vram_gb'))
+        .otherwise(pl.col('reported_vram_gb')).alias('reported_vram_gb'),
+        pl.when(pl.col('spec_missing_tdp')).then(None)
+        .otherwise(pl.col('reported_tdp_w')).alias('reported_tdp_w'))
 
 
 def build(model_tag: str, prompt_version: str, count_policy: str,

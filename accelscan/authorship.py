@@ -130,18 +130,34 @@ def explode_authors(part: pl.DataFrame, fulltext: pl.DataFrame,
 
 def build_crosswalk(so: dict, client, c: Corpus = S2ORC,
                     release_id: str = S2_RELEASE_ID, n_parts: int | None = None,
-                    local_out: str | None = None) -> int:
-    """Write one crosswalk part per papers part. Peak memory = one part."""
-    from accelscan.s3 import list_keys
-    fulltext = _fulltext_ids(so, c)
-    print(f'{fulltext.height:,} full-text papers', file=sys.stderr)
+                    local_out: str | None = None, overwrite: bool = False) -> int:
+    """Write one crosswalk part per papers part. Peak memory = one part.
 
+    Restartable at part granularity, the same contract stage 1/2 get from their
+    `.done` markers: an already-written part is skipped, so re-running the SLURM
+    script to redo only the panel step costs a listing rather than 7e8 rows.
+    Pass `overwrite=True` after a new S2 release lands under the same id.
+    """
+    from accelscan.s3 import list_keys
+    out_prefix = authorship_crosswalk_parts(c, release_id)
+    done = set() if overwrite else {
+        k.rsplit('/', 1)[-1]
+        for k in list_keys(out_prefix + '/', suffix='.parquet', client=client)}
     keys = list_keys(PAPERS_PREFIX, suffix='.parquet', client=client)
     if n_parts:
         keys = keys[:n_parts]
-    out_prefix = authorship_crosswalk_parts(c, release_id)
+    if len(done) >= len(keys):
+        print(f'crosswalk already complete: {len(done)} parts under {out_prefix}',
+              file=sys.stderr)
+        return 0
+    fulltext = _fulltext_ids(so, c)
+    print(f'{fulltext.height:,} full-text papers | {len(done)} parts already written',
+          file=sys.stderr)
+
     total = 0
     for i, k in enumerate(keys):
+        if f'part_{i:04d}.parquet' in done:
+            continue
         part = pl.read_parquet(s3_uri(k), storage_options=so,
                                columns=[c.key, 'year', 'authors', 's2fieldsofstudy'])
         x = explode_authors(part, fulltext, key=c.key)
@@ -775,6 +791,8 @@ def main() -> None:
     ap.add_argument('--n-parts', type=int, help='dev: cap parts read')
     ap.add_argument('--local-crosswalk',
                     help='dev: read crosswalk parts from a local directory')
+    ap.add_argument('--overwrite', action='store_true',
+                    help='crosswalk: rewrite parts that already exist')
     ap.add_argument('--local-out')
     ap.add_argument('--corpus', default='s2orc', choices=['s2orc'],
                     help='arXiv carries no author ids, only name strings')
@@ -786,7 +804,7 @@ def main() -> None:
 
     if args.step == 'crosswalk':
         n = build_crosswalk(so, client, c, args.release_id, args.n_parts,
-                            args.local_out)
+                            args.local_out, args.overwrite)
         print(f'crosswalk: {n:,} (paper, author) rows', file=sys.stderr)
         return
 
