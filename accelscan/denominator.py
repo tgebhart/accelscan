@@ -116,7 +116,7 @@ def build_citations(so: dict, client, focal: pl.DataFrame) -> pl.DataFrame:
     ones) stay present with nulls and are flagged.
     """
     focal = focal.filter(pl.col('year').is_not_null()).select('corpusid', 'year')
-    keep = ['i_1', 'i_3', 'i_5', 'i_10', 'bcites']
+    keep = ['i_2', 'i_3', 'i_5']
     oc = (pl.scan_parquet(OUTCOMES_PATH)
           .select(['record_id'] + keep)
           .with_columns(corpusid=pl.col('record_id').cast(pl.Int64, strict=False))

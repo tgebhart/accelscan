@@ -169,7 +169,7 @@ if os.path.basename(os.getcwd()) == 'notebooks':
 pm = pm.with_columns(cite_window_complete=pl.col('year') <= CITE_CUTOFF)
 """, ""),
         ("CITE_WINDOW = 3             # years of forward citations (i_3); "
-         "i_1/i_5/i_10 also available\n"
+         "i_2 and i_5 also available\n"
          "CITE_CUTOFF = 2023          # last year with a complete CITE_WINDOW in the "
          "outcomes build\n", ""),
     ],

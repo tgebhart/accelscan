@@ -108,7 +108,7 @@ sbatch slurm/s2_download.txt
 #    Only needed to rebuild citation outcomes; papers/abstracts do not depend on it.
 sbatch slurm/s2_citations.txt
 
-# 3. forward-citation outcomes (i_1/i_3/i_5/i_10 + bcites), ~25 min.
+# 3. forward-citation outcomes (i_2, i_3, i_5), ~25 min.
 #    NO --array: it computes every horizon in one pass and writes the joined table
 #    denominator.py reads, so aggregate.py is not in the path.
 sbatch slurm/s2_outcomes_fast.txt
@@ -121,7 +121,7 @@ sbatch slurm/s2_outcomes_fast.txt
 - **Forward citations are computed by `fast_outcomes.py`, not `outcomes.py`.** The
   release's edge list is 5.71e9 raw / 4.87e9 after filters, and the lab's
   dict-of-sets/year-loop cannot process that (it ran 11 h without progress). For
-  `i_k` and `bcites` the computation reduces to a group-by, which
+  `i_k` the computation reduces to a group-by, which
   `tests/test_fast_outcomes.py` pins against `outcomes.run()` on a fixture graph.
   `outcomes.py` remains for `cd_k`, which needs 2-hop set intersections.
 - **No disruption/CD index going forward.** Nothing in the analysis used it, and
@@ -281,7 +281,7 @@ Writes to `s3://…/accelscan/analytic/{registry}/{prompt}/{model_tag}/`:
 |---|---|---|
 | `denominator` | 12,408,584 | one row per S2ORC full-text paper: year, field, `is_candidate`. **The population** — required so prevalence shares have a correct base. |
 | `paper_flags` | 352,822 | per-paper accelerator numerators: any mention / reported use / model-specific, manufacturers, subtypes, model vintage, max device count. |
-| `citations` | 347,829 | `citations_5y` (`i_5`) plus `i_1`/`i_3`/`i_10`/`bcites`, from the outcomes table `accelscan.semanticscholar.fast_outcomes` builds, with `window_complete` (≤2020) and `has_outcomes`. No CD/disruption index: it needs 2-hop set intersections over a 5.7e9-edge graph and nothing here used it. |
+| `citations` | 347,829 | `citations_5y` (`i_5`) plus `i_2` and `i_3`, from the outcomes table `accelscan.semanticscholar.fast_outcomes` builds, with `window_complete` (≤2020) and `has_outcomes`. No CD/disruption index: it needs 2-hop set intersections over a 5.7e9-edge graph and nothing here used it. |
 
 Very large inputs (papers, citations) are read part-by-part (`_by_part`) so memory
 stays bounded regardless of table size.

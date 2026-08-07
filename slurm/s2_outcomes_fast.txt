@@ -32,4 +32,4 @@ set -a; source .env; set +a
 source activate accelscan
 
 # Writes the joined table denominator.py reads, so aggregate.py is not needed.
-python -m accelscan.semanticscholar.fast_outcomes --cd_types i bcites --time_horizons 1 3 5 10
+python -m accelscan.semanticscholar.fast_outcomes --cd_types i --time_horizons 2 3 5

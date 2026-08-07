@@ -27,8 +27,8 @@ bucket and never need a global frame. Peak memory is one bucket.
 `cd_k` genuinely needs set intersections over a 2-hop neighbourhood and is NOT
 implemented here -- use `outcomes.py` for it, on a focal-scoped subset.
 
-    python -m accelscan.semanticscholar.fast_outcomes --time_horizons 1 3 5 10
-    python -m accelscan.semanticscholar.fast_outcomes --cd_types i bcites --keep-buckets
+    python -m accelscan.semanticscholar.fast_outcomes
+    python -m accelscan.semanticscholar.fast_outcomes --time_horizons 2 3 5 10 --cd_types i bcites
 """
 
 import argparse
@@ -49,7 +49,7 @@ from accelscan.semanticscholar.outcomes import (CITATION_LOC, CITED_VAR,
 # beat many small ones: pass 1 writes one file per (input part, bucket), so 64
 # buckets would mean 25,792 files on a shared filesystem.
 N_BUCKETS = 16
-HORIZONS = (1, 3, 5, 10)
+HORIZONS = (2, 3, 5)
 
 
 def _filtered(path: str, end_year: int) -> pl.DataFrame:
@@ -214,7 +214,7 @@ def main() -> None:
                          'denominator.py reads, so aggregate.py is not needed')
     ap.add_argument('--csvs', action='store_true',
                     help='also write per-metric CSVs, for aggregate.py')
-    ap.add_argument('--cd_types', nargs='+', default=['i', 'bcites'],
+    ap.add_argument('--cd_types', nargs='+', default=['i'],
                     choices=['i', 'bcites'])
     ap.add_argument('--time_horizons', nargs='+', type=int, default=list(HORIZONS))
     ap.add_argument('--end_year', type=int, default=END_YEAR)
