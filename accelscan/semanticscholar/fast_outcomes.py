@@ -175,10 +175,39 @@ def write_csvs(res: dict[str, pl.DataFrame], save_loc: str,
     return written
 
 
+def write_parquet(res: dict[str, pl.DataFrame], out_path: str,
+                  horizons=HORIZONS, cd_types=('i',)) -> str:
+    """Write ONE table with every metric as a column, joined on record_id.
+
+    This is what `aggregate.py` produces from the per-metric CSVs, so writing it
+    here skips that round trip -- which is not a micro-optimization at this scale:
+    the universe is ~2.4e8 papers, so the CSV path means writing ~5 x 600 MB of
+    gzip and reading it all back to do joins we can do in memory.
+    """
+    df = res['_universe'].select('record_id')
+    cols = ([f'i_{k}' for k in horizons] if 'i' in cd_types else []) \
+        + (['bcites'] if 'bcites' in cd_types else [])
+    for col in cols:
+        df = (df.join(res[col], on='record_id', how='left')
+              .with_columns(pl.col(col).fill_null(0).cast(pl.Int64)))
+    df = df.sort('record_id')
+    os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
+    df.write_parquet(out_path, compression='gzip')
+    print(f'wrote {out_path}: {df.height:,} papers x {len(cols)} metrics '
+          + ' | '.join(f'{c} sum={df[c].sum():,}' for c in cols), file=sys.stderr)
+    return out_path
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--citation_loc', default=CITATION_LOC)
     ap.add_argument('--save_loc', default=SAVE_LOC)
+    ap.add_argument('--out', default=None,
+                    help='single joined parquet (default: <save_loc>/'
+                         'semanticscholar_outcomes.parquet.gz); this is what '
+                         'denominator.py reads, so aggregate.py is not needed')
+    ap.add_argument('--csvs', action='store_true',
+                    help='also write per-metric CSVs, for aggregate.py')
     ap.add_argument('--cd_types', nargs='+', default=['i', 'bcites'],
                     choices=['i', 'bcites'])
     ap.add_argument('--time_horizons', nargs='+', type=int, default=list(HORIZONS))
@@ -195,7 +224,12 @@ def main() -> None:
     if not args.reuse_buckets:
         bucket_edges(args.citation_loc, work, args.end_year, args.n_buckets)
     res = count_outcomes(work, tuple(args.time_horizons), args.n_buckets)
-    write_csvs(res, args.save_loc, tuple(args.time_horizons), tuple(args.cd_types))
+    out = args.out or os.path.join(args.save_loc,
+                                   'semanticscholar_outcomes.parquet.gz')
+    write_parquet(res, out, tuple(args.time_horizons), tuple(args.cd_types))
+    if args.csvs:
+        write_csvs(res, args.save_loc, tuple(args.time_horizons),
+                   tuple(args.cd_types))
     if not (args.keep_buckets or args.reuse_buckets):
         shutil.rmtree(work, ignore_errors=True)
 
