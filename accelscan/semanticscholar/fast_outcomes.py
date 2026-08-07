@@ -191,6 +191,12 @@ def write_parquet(res: dict[str, pl.DataFrame], out_path: str,
         df = (df.join(res[col], on='record_id', how='left')
               .with_columns(pl.col(col).fill_null(0).cast(pl.Int64)))
     df = df.sort('record_id')
+    # A single-horizon table is almost always a mis-invocation (see the array guard
+    # in main), and it silently replaces a complete one. Say so rather than write it.
+    if len(cols) < 2:
+        print(f'WARNING: writing only {cols} -- if you meant all horizons, drop '
+              f'--time_horizons and do not submit this as an array',
+              file=sys.stderr)
     os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
     df.write_parquet(out_path, compression='gzip')
     print(f'wrote {out_path}: {df.height:,} papers x {len(cols)} metrics '
@@ -215,10 +221,24 @@ def main() -> None:
     ap.add_argument('--n_buckets', type=int, default=N_BUCKETS)
     ap.add_argument('--work_dir', default=None,
                     help='scratch for bucketed edges (default: <save_loc>/_buckets)')
-    ap.add_argument('--keep-buckets', action='store_true')
+    ap.add_argument('--delete-buckets', action='store_true',
+                    help='remove the bucket scratch when done (kept by default: '
+                         'pass 1 costs ~13 min and is reusable via --reuse-buckets)')
     ap.add_argument('--reuse-buckets', action='store_true',
                     help='skip pass 1 and use an existing work_dir')
     args = ap.parse_args()
+
+    # This computes EVERY horizon in one pass, so a SLURM array over horizons is
+    # not just redundant, it is destructive: sibling tasks share `_buckets` (one
+    # deletes it mid-read of another) and all write the same --out, so the last
+    # finisher wins and the table ends up holding a single horizon. That is exactly
+    # what happened on job 15097009: tasks 2/3/5 raced and left an i_3-only table.
+    if os.environ.get('SLURM_ARRAY_TASK_ID') and not (args.out and args.work_dir):
+        raise SystemExit(
+            'refusing to run as a SLURM array task: this command already computes '
+            f'all horizons ({", ".join(map(str, args.time_horizons))}) in one pass. '
+            'Submit it as a single job (no --array), or if you really want parallel '
+            'tasks, give each an explicit --out AND --work_dir.')
 
     work = args.work_dir or os.path.join(args.save_loc, '_buckets')
     if not args.reuse_buckets:
@@ -230,7 +250,7 @@ def main() -> None:
     if args.csvs:
         write_csvs(res, args.save_loc, tuple(args.time_horizons),
                    tuple(args.cd_types))
-    if not (args.keep_buckets or args.reuse_buckets):
+    if args.delete_buckets:
         shutil.rmtree(work, ignore_errors=True)
 
 
