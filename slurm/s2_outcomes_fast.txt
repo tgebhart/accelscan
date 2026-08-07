@@ -1,0 +1,35 @@
+#!/bin/bash -l
+#SBATCH --time=8:00:00
+#SBATCH -p msibigmem
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+# Measured 168 GB on the full 5.7e9-edge release. Peak is one bucket, not the whole
+# graph. UNITS: a bare number is MEGABYTES to SLURM.
+#SBATCH --mem=300gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+#
+# Forward citations (i_k) and backward citations, as group-bys in polars instead of
+# the lab's dict-of-sets/year-loop. Equivalence to outcomes.run() is pinned by
+# tests/test_fast_outcomes.py. ~25 min for the whole release.
+#
+# SUBMIT WITHOUT --array. Unlike slurm/s2_outcomes.txt, this computes EVERY horizon
+# in one task, so array tasks would share the bucket scratch (one deletes it while
+# another is reading it) and overwrite each other's output, leaving a table with a
+# single horizon in it. fast_outcomes refuses to start under SLURM_ARRAY_TASK_ID.
+#
+# Pass 1 writes ~41 GB of bucketed edges under <save_loc>/_buckets in project space
+# (NOT /tmp, which is a 1.5 GB per-job tmpfs). They are kept for --reuse-buckets;
+# add --delete-buckets to clean up.
+#
+# cd_k is NOT computed here (it needs 2-hop set intersections) -- that stays on
+# slurm/s2_outcomes.txt.
+export PYTHONUNBUFFERED=TRUE
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+# Writes the joined table denominator.py reads, so aggregate.py is not needed.
+python -m accelscan.semanticscholar.fast_outcomes --cd_types i bcites --time_horizons 1 3 5 10
