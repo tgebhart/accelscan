@@ -470,3 +470,22 @@ def test_never_jumper_placebo_is_null():
     # placebo showed
     post = res.filter(pl.col('tau') > 0).sort('tau')['theta'].to_list()
     assert abs(post[-1] - post[0]) < 0.15, f'placebo drifts across tau: {post}'
+
+
+def test_as_share_of_baseline_is_an_exact_rescaling():
+    """The reader-facing scale must be a linear rescaling of the count estimate,
+    not a back-transform of the log one: exp() of a difference of mean logs is
+    only an approximation (+1.49 vs +1.23 papers at tau=-1 on the full panel)."""
+    res = pl.DataFrame({'tau': [-1, 0, 1], 'theta': [1.23, 0.5, 1.78],
+                        'lo': [1.17, 0.4, 1.675], 'hi': [1.292, 0.6, 1.874],
+                        'n': [10, 10, 10]})
+    got = au.as_share_of_baseline(res, 4.33)
+    assert got.filter(pl.col('tau') == 1)['theta_pct'].item() == pytest.approx(41.11, abs=0.01)
+    # ordering is preserved, so the CI stays a CI
+    assert (got['lo_pct'] <= got['theta_pct']).all()
+    assert (got['theta_pct'] <= got['hi_pct']).all()
+    # exact: rescaling twice by reciprocal factors returns the original
+    back = au.as_share_of_baseline(got.drop('theta_pct', 'lo_pct', 'hi_pct'), 1.0)
+    assert back['theta_pct'].to_list() == pytest.approx([123.0, 50.0, 178.0])
+    with pytest.raises(ValueError, match='non-zero'):
+        au.as_share_of_baseline(res, 0.0)

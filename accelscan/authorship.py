@@ -65,7 +65,16 @@ N_CONTROLS = 5
 BOOTSTRAP_B = 300
 SEED = 42
 
-OUTCOMES = ('log_papers', 'n_accel', 'n_nonaccel', 'cit_i3_mean')
+# `n_papers` rather than `log_papers` is the headline output measure, so every
+# figure's y axis is in papers per year. The log is kept in the panel (see
+# `add_outcomes`) and reported as a robustness scale, but it cannot be the
+# headline: theta on the log is a difference of mean log(1 + papers), and
+# back-transforming it to a count via (exp(theta) - 1) * (1 + baseline) is only
+# an approximation -- on the full panel it gives +1.49 papers at tau = -1 where
+# running the same event study directly on the count gives +1.23. Since both are
+# equally cheap to compute, publish the exact one.
+OUTCOMES = ('n_papers', 'n_accel', 'n_nonaccel', 'cit_i3_mean')
+ROBUSTNESS_OUTCOMES = ('log_papers',)
 
 
 # ===========================================================================
@@ -525,6 +534,27 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
         return pl.DataFrame(schema={'authorid': pl.Utf8, 'event_year': pl.Int16,
                                     'control_id': pl.Utf8})
     return pl.DataFrame(pairs).with_columns(pl.col('event_year').cast(pl.Int16))
+
+
+def as_share_of_baseline(res: pl.DataFrame, baseline_papers: float) -> pl.DataFrame:
+    """Add `theta_pct`/`lo_pct`/`hi_pct`: the count effect as a % of baseline output.
+
+    This is the reader-facing scale — "output rose 41%" rather than "theta on
+    log(1 + papers) was 0.284" — and unlike back-transforming the log estimate it
+    is **exact**: theta is already a difference in papers per year, so dividing by
+    the jumpers' own pre-period mean is a linear rescaling. Being linear and
+    positive it is also monotone, so the bootstrap percentiles rescale directly.
+
+    `baseline_papers` is the mean of `pre_papers_mean` over the jumpers in this
+    estimate, so the result is "the average effect as a share of average baseline
+    output" — NOT the average of per-author percentage changes, which would be
+    undefined for the authors whose baseline output is zero.
+    """
+    if not baseline_papers:
+        raise ValueError('baseline_papers must be non-zero to express a share')
+    return res.with_columns(
+        *[(100 * pl.col(c) / baseline_papers).alias(f'{c}_pct')
+          for c in ('theta', 'lo', 'hi')])
 
 
 def placebo_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,

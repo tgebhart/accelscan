@@ -51,6 +51,27 @@ SLUG_MAX = 70
 _state = {'notebook': None, 'n': 0, 'saved': set()}
 
 
+def _all_axes(fig):
+    """Every Axes in `fig`, including secondary ones.
+
+    `fig.get_axes()` omits the Axes created by `ax.secondary_xaxis/yaxis` -- they
+    live in the parent's `child_axes`. Without them a secondary axis silently
+    escapes all three fixes below, and a secondary axis labelled "Percentage of
+    ..." would render bare numbers, which is precisely the percent-vs-proportion
+    ambiguity these hooks exist to remove.
+    """
+    seen, out = set(), []
+    stack = list(fig.get_axes())
+    while stack:
+        ax = stack.pop()
+        if id(ax) in seen:
+            continue
+        seen.add(id(ax))
+        out.append(ax)
+        stack.extend(getattr(ax, 'child_axes', ()) or ())
+    return out
+
+
 def _is_year_axis(axis) -> bool:
     lo, hi = sorted(axis.get_view_interval())
     scale = (axis.axes.get_xscale() if axis.axis_name == 'x' else axis.axes.get_yscale())
@@ -59,7 +80,7 @@ def _is_year_axis(axis) -> bool:
 
 def integerize_year_ticks(fig) -> None:
     """Force integer ticks on every year-like axis of `fig`."""
-    for ax in fig.get_axes():
+    for ax in _all_axes(fig):
         for axis in (ax.xaxis, ax.yaxis):
             if _is_year_axis(axis):
                 axis.set_major_locator(MaxNLocator(integer=True, nbins='auto'))
@@ -76,7 +97,7 @@ def clean_log_axes(fig) -> None:
     2-24 GB -- the limits are snapped out to the enclosing decades instead of
     falling back to minor ticks, so the axis keeps at least two labels.
     """
-    for ax in fig.get_axes():
+    for ax in _all_axes(fig):
         for axis, name in ((ax.xaxis, 'x'), (ax.yaxis, 'y')):
             if (ax.get_xscale() if name == 'x' else ax.get_yscale()) != 'log':
                 continue
@@ -101,7 +122,7 @@ def percent_tick_labels(fig) -> None:
     indistinguishable from a proportion, and guessing wrong scales the tick labels
     by 100x.
     """
-    for ax in fig.get_axes():
+    for ax in _all_axes(fig):
         for axis, label in ((ax.xaxis, ax.get_xlabel()), (ax.yaxis, ax.get_ylabel())):
             if not PCT_LABEL.match(label):
                 continue
