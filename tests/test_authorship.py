@@ -770,6 +770,25 @@ def test_match_controls_extra_stratum_changes_the_matching():
         au.match_controls(panel, jumps, extra_stratum='nope')
 
 
+def test_extra_stratum_survives_a_column_that_is_null_for_every_jumper():
+    """`frontier_entry` has a null prior position for every treated unit by
+    construction, so every quantile of the extra stratum is None and the cut list is
+    empty. That must degenerate to one bin, not raise -- `sum(<empty>)` returns the
+    int 0, which has no `.cast`, and the failure surfaced deep inside the estimator
+    rather than at the call site."""
+    panel, jumps = _synthetic_panel(n_jumpers=40, n_controls=200)
+    panel = panel.with_columns(
+        pos=pl.when(pl.col('authorid').str.starts_with('j')).then(None)
+        .otherwise(1.0).cast(pl.Float64))
+    base = au.match_controls(panel, jumps, seed=au.SEED)
+    out = au.match_controls(panel, jumps, seed=au.SEED, extra_stratum='pos')
+    # every jumper lands in the 'na' bin and every control in bin '0', so the extra
+    # dimension separates the two sides and no match survives -- the informative
+    # assertion is that it returns cleanly and says so
+    assert out.height <= base.height
+    assert set(out.columns) == {'authorid', 'event_year', 'control_id'}
+
+
 def test_vendor_frontier_is_monotone_and_registry_sourced():
     from accelscan.registry import load_registry
     vf = au.vendor_frontier(load_registry(), range(2008, 2026))

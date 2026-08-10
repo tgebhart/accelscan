@@ -557,16 +557,25 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                                                0.8, 0.9)]
         xq = [q for q in xq if q is not None]
 
+    # `start=pl.lit(0)` so an EMPTY cut list still yields an expression rather than
+    # the int 0 that `sum(<empty generator>)` returns. That is not hypothetical: the
+    # `frontier_entry` event type has a null `frontier_gap` for every treated unit by
+    # construction (there is no prior year of access), so every quantile is None and
+    # `xq` is empty. The stratum then degenerates to a single bin, which is the
+    # correct behaviour -- prior position carries no information for those events --
+    # rather than an AttributeError deep inside the estimator.
+    def bin_on(e: pl.Expr, cuts: list) -> pl.Expr:
+        return sum(((e > q).cast(pl.Int32) for q in cuts), start=pl.lit(0)).cast(pl.Utf8)
+
     def strat(df: pl.DataFrame, field: str, career: str, ppm: str) -> pl.DataFrame:
         keys = [pl.col(field).fill_null('?'),
                 _career_bin(pl.col(career).cast(pl.Int32)).cast(pl.Utf8),
-                sum((pl.col(ppm) > q).cast(pl.Int32) for q in qs).cast(pl.Utf8)]
+                bin_on(pl.col(ppm), qs)]
         if extra_stratum is not None:
             df = df.join(lag, on=['authorid', 'event_year'], how='left')
             keys.append(
                 pl.when(pl.col('_xs').is_null()).then(pl.lit('na'))
-                .otherwise(sum((pl.col('_xs') > q).cast(pl.Int32)
-                               for q in xq).cast(pl.Utf8)))
+                .otherwise(bin_on(pl.col('_xs'), xq)))
         return df.with_columns(stratum=pl.concat_str(keys, separator='|'))
 
     jj = strat(jj, 'field', 'career_at', 'pre_papers_mean')
