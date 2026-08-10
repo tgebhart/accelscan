@@ -489,3 +489,100 @@ def test_as_share_of_baseline_is_an_exact_rescaling():
     assert back['theta_pct'].to_list() == pytest.approx([123.0, 50.0, 178.0])
     with pytest.raises(ValueError, match='non-zero'):
         au.as_share_of_baseline(res, 0.0)
+
+
+# --- calendar time and composition -------------------------------------------
+
+def _year_shock_panel(n_jumpers=150, n_controls=600, effect=1.0, shock=3.0,
+                      seed=0, noise=0.4):
+    """Known effect PLUS a large calendar-year shock common to everyone.
+
+    The shock is the thing the user's question is about: accelerator reporting
+    rises over calendar time, so an estimator that fails to absorb year effects
+    will attribute that rise to the event. Event years are spread, so calendar
+    year and event time are not collinear -- with a single event year they would
+    be, and the test would be vacuous.
+    """
+    rng = np.random.default_rng(seed)
+    year_fx = {y: shock * (y - 2005) / 10 for y in range(2003, 2021)}
+    rec, ev = [], []
+    for i in range(n_jumpers + n_controls):
+        jumper = i < n_jumpers
+        aid = f'j{i}' if jumper else f'c{i}'
+        e = 2010 + (i % 5)                       # event years 2010..2014
+        level = rng.normal(4, 1)
+        for year in range(2003, 2021):
+            y = level + year_fx[year] + rng.normal(0, noise)
+            if jumper and year >= e:
+                y += effect
+            rec.append({'authorid': aid, 'year': year, 'n_papers': y,
+                        'modal_field': 'Computer Science', 'ever_gpu': True,
+                        'y0': 2003, 'y1': 2020, 'career_year': year - 2002,
+                        'control_sample': 'gpu_ever'})
+        if jumper:
+            ev.append({'authorid': aid, 'event_year': e})
+    panel = pl.DataFrame(rec).with_columns(pl.col('year').cast(pl.Int16))
+    jumps = pl.DataFrame(ev).with_columns(
+        pl.col('event_year').cast(pl.Int16), field=pl.lit('Computer Science'),
+        event_type=pl.lit('ratio_jump'))
+    jumps = jumps.join(
+        au.pre_papers_mean(panel, jumps.select('authorid', 'event_year')),
+        on=['authorid', 'event_year'], how='left')
+    return panel, jumps
+
+
+def test_twoway_fe_recovers_the_effect_through_a_calendar_shock():
+    panel, jumps = _year_shock_panel(effect=1.0, shock=3.0)
+    ctrl = au.match_controls(panel, jumps, seed=au.SEED)
+    assert ctrl.height
+    fe = au.twoway_fe(panel, jumps, ctrl, 'n_papers').sort('tau')
+    post = fe.filter(pl.col('tau') > 0)
+    pre = fe.filter(pl.col('tau') < 0)          # only tau=-1; the rest is reference
+    assert post['beta'].min() > 0.75 and post['beta'].max() < 1.25, fe
+    assert pre['beta'].abs().max() < 0.25, fe
+    # the year shock is 3.0 per decade and must not leak into the event-time terms
+    assert abs(post['beta'].mean() - 1.0) < 0.15, fe
+
+
+def test_twoway_fe_agrees_with_the_matched_difference():
+    """The two estimators control calendar time differently -- year dummies vs a
+    within-event-year matched difference. They should agree; if they ever stop,
+    the matched cells are not absorbing calendar time."""
+    panel, jumps = _year_shock_panel(effect=1.0, shock=3.0)
+    ctrl = au.match_controls(panel, jumps, seed=au.SEED)
+    fe = au.twoway_fe(panel, jumps, ctrl, 'n_papers')
+    es = au.event_study(panel, jumps, ctrl, 'n_papers', b=100)
+    j = fe.join(es.select('tau', 'theta'), on='tau', how='inner')
+    assert j.height >= 5
+    assert (j['beta'] - j['theta']).abs().max() < 0.2, j
+
+
+def test_twoway_fe_reference_is_the_whole_baseline_window():
+    panel, jumps = _year_shock_panel(n_jumpers=60, n_controls=200)
+    ctrl = au.match_controls(panel, jumps, seed=au.SEED)
+    fe = au.twoway_fe(panel, jumps, ctrl, 'n_papers')
+    got = set(fe['tau'].to_list())
+    assert got.isdisjoint(set(au.BASE_TAUS)), 'baseline taus must be the reference'
+    assert got == set(range(au.TAU_MIN, au.TAU_MAX + 1)) - set(au.BASE_TAUS)
+    with pytest.raises(ValueError, match='not in panel'):
+        au.twoway_fe(panel, jumps, ctrl, 'nope')
+
+
+def test_balanced_jumps_keeps_only_fully_observable_windows():
+    panel, jumps = _year_shock_panel(n_jumpers=60, n_controls=60)
+    # panel spans 2003-2020 and every career runs the whole span, so an event at
+    # 2010-2014 has a full +/-5 window and all events survive
+    assert au.balanced_jumps(panel, jumps).height == jumps.height
+    # an event 3 years before the panel ends cannot have a +5 window
+    late = jumps.with_columns(event_year=pl.lit(2018, dtype=pl.Int16))
+    assert au.balanced_jumps(panel, late).height == 0
+    # nor can one 2 years after it starts have a -5 window
+    early = jumps.with_columns(event_year=pl.lit(2005, dtype=pl.Int16))
+    assert au.balanced_jumps(panel, early).height == 0
+    # a career that ends before tau_max is excluded: the panel stops at y1, so
+    # those rows are missing rather than zero, and tau=+5 would be unobserved
+    short = panel.filter((pl.col('authorid').str.starts_with('j').not_())
+                         | (pl.col('year') <= 2013)).with_columns(
+        y1=pl.when(pl.col('authorid').str.starts_with('j')).then(2013)
+        .otherwise(pl.col('y1')))
+    assert au.balanced_jumps(short, jumps).height == 0

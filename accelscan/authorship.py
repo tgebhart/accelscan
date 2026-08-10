@@ -536,6 +536,135 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
     return pl.DataFrame(pairs).with_columns(pl.col('event_year').cast(pl.Int16))
 
 
+def balanced_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
+                   tau_min: int = TAU_MIN, tau_max: int = TAU_MAX) -> pl.DataFrame:
+    """Events whose entire [tau_min, tau_max] window is observable.
+
+    Why this matters more than it sounds: 93% of `ratio_jump` events are 2020 or
+    later, and only 13% have a full +5 window. In the unbalanced estimate tau=+1
+    is measured on 2020-24 jumpers while tau=+5 is measured on a *different,
+    earlier* cohort, so the decay across tau is confounded with a cohort switch
+    and cannot be read as an effect fading.
+
+    Three conditions, and the second carries a cost worth stating: the author's
+    span must start by `event_year + tau_min`, must extend to
+    `event_year + tau_max`, and the window must fit inside the panel's calendar
+    range. The middle one conditions on the author still publishing tau_max years
+    later, because `author_year_panel` densifies only from first to last
+    publication -- an author who stops publishing has NO rows afterwards rather
+    than zero-output rows. So exit is missing data, not measured zero, and the
+    balanced estimate is conditional on survival. That biases late-tau estimates
+    upward (only survivors are observed) in both the balanced and unbalanced
+    variants; balancing fixes the composition shift, not the survivorship.
+    """
+    span = panel.group_by('authorid').agg(pl.first('y0'), pl.first('y1'))
+    lo, hi = int(panel['year'].min()), int(panel['year'].max())
+    e = pl.col('event_year').cast(pl.Int32)
+    return (jumps.join(span, on='authorid', how='inner')
+            .filter((pl.col('y0') <= e + tau_min) & (pl.col('y1') >= e + tau_max)
+                    & (e + tau_min >= lo) & (e + tau_max <= hi))
+            .drop('y0', 'y1'))
+
+
+def twoway_fe(panel: pl.DataFrame, jumps: pl.DataFrame, controls: pl.DataFrame,
+              outcome: str, *, ref_taus: tuple = BASE_TAUS,
+              tau_min: int = TAU_MIN, tau_max: int = TAU_MAX) -> pl.DataFrame:
+    """Event-time coefficients with unit AND calendar-year fixed effects.
+
+        y_it = alpha_i + gamma_t + sum_tau beta_tau * 1[treated_i, tau_it = tau]
+
+    `event_study` already controls calendar time by construction — a control is
+    assigned its jumper's event year, so tau is calendar-aligned and year shocks
+    common to a matched cell difference out non-parametrically. This writes the
+    year effects down explicitly instead, which is the conventional specification
+    and the one a referee will ask for.
+
+    **When the two disagree, suspect this estimator first, not the matched one.**
+    Two-way FE is badly behaved under concentrated event timing: 93% of
+    `ratio_jump` events fall in 2020 or later, which makes calendar year and event
+    time nearly collinear in the stacked sample, and treated units in their own
+    post-periods help identify gamma_t for exactly the years the late-tau
+    coefficients are measured against. Measured on the 2026-07-28 panel:
+
+    - full sample (93% of events 2020+):     max |beta - theta| = 1.48
+    - `balanced_jumps` sample (events 2010-2020, timing spread): 0.23
+
+    Same code, same outcome; only the timing concentration differs. So agreement
+    on a balanced sample is the meaningful check, and it passes.
+
+    Design choices that matter:
+
+    - **Stacked**: the unit is (author, event_year), not author. A control matched
+      to jumpers with different event years has a different tau mapping in each,
+      so it enters once per event year with its own fixed effect. This is the
+      standard stacked event-study construction.
+    - **Reference = the whole baseline window.** No dummy is fitted for
+      tau in `ref_taus`, so every beta is measured against the mean of that
+      window — exactly what `event_study` demeans by, which is what makes the two
+      directly comparable. (Omitting a single tau instead would silently change
+      the estimand.)
+    - Each (control, event_year) pair enters once regardless of how many jumpers
+      matched it, so a popular control is not replicated.
+    - SEs are cluster-robust by unit; the block bootstrap in `event_study` remains
+      the inference of record.
+    """
+    if outcome not in panel.columns:
+        raise ValueError(f'{outcome!r} not in panel; call add_outcomes first')
+    units = pl.concat([
+        jumps.select('authorid', 'event_year').unique()
+        .with_columns(treated=pl.lit(1.0)),
+        controls.select(authorid='control_id', event_year='event_year').unique()
+        .with_columns(treated=pl.lit(0.0)),
+    ])
+    d = (units.join(panel.select('authorid', 'year', outcome), on='authorid',
+                    how='inner')
+         .with_columns(tau=pl.col('year').cast(pl.Int32)
+                       - pl.col('event_year').cast(pl.Int32))
+         .filter(pl.col('tau').is_between(tau_min, tau_max)
+                 & pl.col(outcome).is_not_null())
+         .with_columns(unit=pl.struct('authorid', 'event_year').rank('dense') - 1))
+    if not d.height:
+        return pl.DataFrame(schema={'tau': pl.Int32, 'beta': pl.Float64,
+                                    'se': pl.Float64, 'lo': pl.Float64,
+                                    'hi': pl.Float64, 'n_units': pl.Int64})
+
+    taus = [t for t in range(tau_min, tau_max + 1) if t not in set(ref_taus)]
+    years = sorted(d['year'].unique().to_list())[1:]      # drop one: collinear
+    y = d[outcome].to_numpy().astype(float)
+    unit = d['unit'].to_numpy()
+    cols = [((d['treated'].to_numpy() == 1.0) & (d['tau'].to_numpy() == t)).astype(float)
+            for t in taus]
+    cols += [(d['year'].to_numpy() == yr).astype(float) for yr in years]
+    X = np.column_stack(cols)
+
+    # Within-unit demeaning absorbs alpha_i (Frisch-Waugh): it must be applied to
+    # every regressor, not just the outcome, or the year dummies stay contaminated
+    # by unit composition.
+    n_units = int(unit.max()) + 1
+    counts = np.bincount(unit, minlength=n_units).astype(float)
+    def demean(v):
+        s = np.zeros((n_units,) + v.shape[1:])
+        np.add.at(s, unit, v)
+        return v - (s / counts.reshape((-1,) + (1,) * (v.ndim - 1)))[unit]
+    yd, Xd = demean(y), demean(X)
+
+    beta, *_ = np.linalg.lstsq(Xd, yd, rcond=None)
+    resid = yd - Xd @ beta
+    xtx_inv = np.linalg.pinv(Xd.T @ Xd)
+    # cluster-robust sandwich: sum over units of (X_g' e_g)(X_g' e_g)'
+    s = np.zeros((n_units, Xd.shape[1]))
+    np.add.at(s, unit, Xd * resid.reshape(-1, 1))
+    meat = s.T @ s
+    g = n_units
+    scale = g / max(g - 1, 1)
+    cov = xtx_inv @ (scale * meat) @ xtx_inv
+    se = np.sqrt(np.clip(np.diag(cov), 0, None))[:len(taus)]
+    b = beta[:len(taus)]
+    return pl.DataFrame({'tau': taus, 'beta': b, 'se': se,
+                        'lo': b - 1.96 * se, 'hi': b + 1.96 * se,
+                        'n_units': [g] * len(taus)})
+
+
 def as_share_of_baseline(res: pl.DataFrame, baseline_papers: float) -> pl.DataFrame:
     """Add `theta_pct`/`lo_pct`/`hi_pct`: the count effect as a % of baseline output.
 
