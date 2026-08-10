@@ -419,7 +419,8 @@ def _career_bin(e: pl.Expr) -> pl.Expr:
 
 def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                    variant: str = 'riskset', n_controls: int = N_CONTROLS,
-                   seed: int = SEED) -> pl.DataFrame:
+                   seed: int = SEED,
+                   risk_events: pl.DataFrame | None = None) -> pl.DataFrame:
     """(authorid, event_year, control_id) pairs; pseudo-event = jumper's year.
 
     `riskset` — GPU-ever authors who have NOT yet jumped by the jumper's event
@@ -441,7 +442,15 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
         pl.first('control_sample') if 'control_sample' in panel.columns
         else pl.lit('gpu_ever').alias('control_sample'))
 
-    jumped = jumps.select('authorid', jumped_year=pl.col('event_year'))
+    # `risk_events` is what defines "has not yet jumped". It defaults to the
+    # treated table, which is right for a real event study, but a placebo needs
+    # them separated: its treated units are non-jumpers, and without passing the
+    # REAL jumps here the control pool would happily supply authors who really
+    # did jump, importing the effect the placebo is supposed to find nothing of.
+    # Caller filters to one event_type; the min guards against row multiplication
+    # if it does not.
+    jumped = ((risk_events if risk_events is not None else jumps)
+              .group_by('authorid').agg(jumped_year=pl.col('event_year').min()))
     pool = author.join(jumped, on='authorid', how='left')
     pool = pool.filter(pl.col('ever_gpu') if variant == 'riskset'
                        else pl.lit(True))
@@ -468,8 +477,18 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
     elig = (elig.join(epm, on=['authorid', 'event_year'], how='inner')
             .filter(pl.col('n_pre_years') >= 2))
 
-    jj = jumps.select('authorid', 'event_year', 'field', 'career_year_at_event',
-                      'pre_papers_mean').drop_nulls('pre_papers_mean')
+    # Career age at the event is DERIVED from the panel here, never read from the
+    # jumps table. A re-timed jump table -- the placebo, a threshold sweep -- still
+    # carries `career_year_at_event` from its original event year, and binning a
+    # jumper as N years older than they are while binning controls correctly
+    # matches young jumpers to old controls. Since output ramps steeply early in a
+    # career and flattens later, that manufactures a rising theta out of career
+    # stage alone, which is exactly what it did to the 6-year-shifted placebo.
+    jj = (jumps.select('authorid', 'event_year', 'field', 'pre_papers_mean')
+          .drop_nulls('pre_papers_mean')
+          .join(author.select('authorid', 'y0'), on='authorid', how='left')
+          .with_columns(career_at=(pl.lit(1) + pl.col('event_year').cast(pl.Int32)
+                                   - pl.col('y0'))))
     cuts = jj['pre_papers_mean'].quantile
     qs = [cuts(q) for q in (0.25, 0.5, 0.75)]
 
@@ -481,7 +500,7 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                 sum((pl.col(ppm) > q).cast(pl.Int32) for q in qs).cast(pl.Utf8),
             ], separator='|'))
 
-    jj = strat(jj, 'field', 'career_year_at_event', 'pre_papers_mean')
+    jj = strat(jj, 'field', 'career_at', 'pre_papers_mean')
     elig = elig.with_columns(
         career_at=(pl.lit(1) + pl.col('event_year').cast(pl.Int32) - pl.col('y0')))
     elig = strat(elig, 'modal_field', 'career_at', 'pre_papers_mean')
@@ -506,6 +525,58 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
         return pl.DataFrame(schema={'authorid': pl.Utf8, 'event_year': pl.Int16,
                                     'control_id': pl.Utf8})
     return pl.DataFrame(pairs).with_columns(pl.col('event_year').cast(pl.Int16))
+
+
+def placebo_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
+                  event_type: str = 'ratio_jump', n: int | None = None,
+                  seed: int = SEED) -> pl.DataFrame:
+    """Pseudo-events on authors who never jump — a placebo with a null expectation.
+
+    The obvious alternative, shifting real jumpers' event years backwards, does
+    **not** give a null, for three reasons that all push the same way:
+
+    1. With a +/-5 window, a shift of 6 puts the placebo's post-period
+       (tau +1..+5) exactly on the real event's pre-period (tau -5..-1). Any
+       run-up to the real jump reappears as a placebo "effect" by construction.
+    2. The shifted baseline lands early in the career, where `n_papers` is near
+       zero and so `log(1 + n_papers)` is near zero; ordinary career ramp-up then
+       reads as an enormous log change (0 -> 11 papers is 2.48 log points).
+    3. Requiring a full pre-window that much earlier keeps only long careers and
+       late jumpers, sharpening exactly that ramp.
+
+    So instead: GPU-ever authors with no event of this type, given pseudo-event
+    years drawn from the real event-year distribution. Treated and control units
+    are then the same population, differing only in a randomly assigned date.
+    Pass the real jumps as `match_controls(..., risk_events=jumps)` so the
+    control pool cannot quietly supply authors who really did jump.
+    """
+    real = jumps.filter(pl.col('event_type') == event_type)
+    years = real['event_year'].drop_nulls().to_numpy()
+    a = (panel.group_by('authorid').agg(
+            pl.first('modal_field'), pl.first('y0'), pl.first('y1'),
+            pl.first('ever_gpu'))
+         .filter(pl.col('ever_gpu'))
+         .join(real.select('authorid'), on='authorid', how='anti'))
+    if not a.height or not years.size:
+        return real.head(0)
+    if n and n < a.height:
+        a = a.sample(n=n, seed=seed)
+    rng = np.random.default_rng(seed)
+    a = a.with_columns(event_year=pl.Series(rng.choice(years, a.height)).cast(pl.Int16))
+    # the pseudo-date is drawn independently of the career, so keep only the
+    # authors whose observed span actually brackets the window
+    out = (a.filter(
+                (pl.col('y0') <= pl.col('event_year').cast(pl.Int32) + min(BASE_TAUS))
+                & (pl.col('y1') >= pl.col('event_year').cast(pl.Int32) + 1))
+           .select('authorid', 'event_year',
+                   field=pl.col('modal_field'),
+                   career_year_at_event=(pl.lit(1)
+                                         + pl.col('event_year').cast(pl.Int32)
+                                         - pl.col('y0')),
+                   event_type=pl.lit(event_type)))
+    return (out.join(pre_papers_mean(panel, out.select('authorid', 'event_year')),
+                     on=['authorid', 'event_year'], how='inner')
+            .filter(pl.col('n_pre_years') >= 2))
 
 
 def _demeaned(panel: pl.DataFrame, events: pl.DataFrame, outcome: str,

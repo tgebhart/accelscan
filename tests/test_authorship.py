@@ -382,3 +382,91 @@ def test_add_outcomes_defines_every_named_outcome(panel):
         au.event_study(panel.drop('log_papers'), au.find_jumps(panel),
                        pl.DataFrame({'authorid': [], 'event_year': [],
                                      'control_id': []}), 'log_papers')
+
+
+# --- control matching: the two defects the 6-year placebo exposed -------------
+
+def _career_panel(seed=0):
+    """Young jumpers, plus young and old candidate controls.
+
+    Every author has the SAME pre-period output, so the field and output-quartile
+    parts of the stratum key cannot tell the two control pools apart -- career-age
+    bin is the only thing that can. Career ages at the 2010 event are 8 (bin 1)
+    and 26 (bin 5), and the jumps table carries a stale 26.
+    """
+    rng = np.random.default_rng(seed)
+    rec = []
+    for i in range(120):
+        aid, y0 = ((f'j{i}', 2003) if i < 40 else
+                   (f'young{i}', 2003) if i < 80 else (f'old{i}', 1985))
+        for year in range(2003, 2016):
+            rec.append({'authorid': aid, 'year': year,
+                        'n_papers': 5 + rng.normal(0, 0.1),
+                        'modal_field': 'Computer Science', 'ever_gpu': True,
+                        'y0': y0, 'y1': 2015, 'career_year': year - y0 + 1,
+                        'control_sample': 'gpu_ever'})
+    panel = pl.DataFrame(rec).with_columns(pl.col('year').cast(pl.Int16))
+    jumps = pl.DataFrame({'authorid': [f'j{i}' for i in range(40)]}).with_columns(
+        event_year=pl.lit(2010, dtype=pl.Int16), field=pl.lit('Computer Science'),
+        event_type=pl.lit('ratio_jump'),
+        # Stale on purpose: says career year 26 (the OLD cohort's age) when the
+        # truth at 2010 is 8. This is the shape a re-timed jump table has -- the
+        # 6-year-shifted placebo, or a threshold sweep.
+        career_year_at_event=pl.lit(26))
+    return panel, jumps.join(
+        au.pre_papers_mean(panel, jumps.select('authorid', 'event_year')),
+        on=['authorid', 'event_year'], how='left')
+
+
+def test_career_age_is_derived_not_read_from_a_stale_jumps_column():
+    """The jumps table claims career year 21; the panel says 3. If the stale
+    column wins, every young jumper is matched to a much older control."""
+    panel, jumps = _career_panel()
+    ctrl = au.match_controls(panel, jumps, seed=au.SEED)
+    assert ctrl.height, 'no controls matched'
+    picked = set(ctrl['control_id'])
+    assert not any(c.startswith('old') for c in picked), (
+        'matched an old control to a young jumper -- career age came from the '
+        'stale jumps column instead of the panel')
+    assert all(c.startswith('young') for c in picked)
+
+
+def test_risk_events_keeps_real_jumpers_out_of_a_placebo_control_pool():
+    """A placebo's treated units are non-jumpers, so the real jumps must be what
+    defines eligibility -- otherwise real jumpers serve as controls and carry the
+    very effect the placebo should fail to find."""
+    panel, jumps = _synthetic_panel(n_jumpers=40, n_controls=60)
+    placebo = au.placebo_jumps(panel, jumps.with_columns(
+        event_type=pl.lit('ratio_jump')), seed=au.SEED)
+    assert placebo.height, 'no placebo events built'
+    assert not (set(placebo['authorid']) & set(jumps['authorid'])), \
+        'a real jumper was used as a placebo treated unit'
+    ctrl = au.match_controls(panel, placebo, seed=au.SEED, risk_events=jumps)
+    assert ctrl.height
+    # The property is risk-set, not disjointness: an author who jumps LATER than
+    # the pseudo-event year is a legitimate not-yet-treated control, and on real
+    # data many are. What must never happen is a control who had already jumped.
+    real = jumps.select(control_id='authorid', real_jump='event_year')
+    early = (ctrl.join(real, on='control_id', how='inner')
+             .filter(pl.col('real_jump') <= pl.col('event_year')))
+    assert early.height == 0, (
+        f'{early.height} controls had already jumped at the pseudo-event year')
+    # without risk_events the real jumps are invisible, so already-jumped authors
+    # are drawn in
+    loose = au.match_controls(panel, placebo, seed=au.SEED)
+    assert (loose.join(real, on='control_id', how='inner')
+            .filter(pl.col('real_jump') <= pl.col('event_year')).height > 0)
+
+
+def test_never_jumper_placebo_is_null():
+    panel, jumps = _synthetic_panel(effect=1.0)
+    placebo = au.placebo_jumps(panel, jumps.with_columns(
+        event_type=pl.lit('ratio_jump')), seed=au.SEED)
+    ctrl = au.match_controls(panel, placebo, seed=au.SEED, risk_events=jumps)
+    res = au.event_study(panel, placebo, ctrl, 'n_papers', b=200)
+    # the real effect is 1.0; the placebo must be an order of magnitude below it
+    assert res['theta'].abs().max() < 0.15, res
+    # and flat: no monotone drift, which is the signature the shifted-jumper
+    # placebo showed
+    post = res.filter(pl.col('tau') > 0).sort('tau')['theta'].to_list()
+    assert abs(post[-1] - post[0]) < 0.15, f'placebo drifts across tau: {post}'
