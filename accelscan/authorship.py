@@ -58,6 +58,15 @@ JUMP_RATIO = 4.0              # primary; {2, 8} as robustness
 EVENT_TYPES = ('ratio_jump', 'dc_first', 'gpu_first')
 CITATION_EVENT_CUTOFF = 2019  # i_3 window complete through ~2022
 
+# Frontier events (frontier.ipynb). The threshold is a within-year quantile of
+# author access, so unlike JUMP_RATIO it is not an absolute bar and the secular
+# growth in reported capacity cancels out of the event definition.
+FRONTIER_QUANTILES = (0.75, 0.90, 0.95)
+FRONTIER_QUANTILE = 0.90      # primary; 0.75/0.95 as robustness
+FRONTIER_NEAR_MISS = 0.75     # lower edge of the near-miss control band
+FRONTIER_EVENT_TYPES = ('frontier_cross', 'frontier_entry')
+MIN_YEAR_N = 50               # authors with access needed to estimate a threshold
+
 # --- event study -----------------------------------------------------------
 TAU_MIN, TAU_MAX = -5, 5
 BASE_TAUS = (-5, -4, -3, -2)  # tau=-1 excluded: anticipation
@@ -225,10 +234,18 @@ def author_year_panel(rows: pl.DataFrame, key: str = 'corpusid') -> pl.DataFrame
     """(author, paper) rows joined to per-paper access/outcomes -> author-year.
 
     `rows` must already carry `accel_used`, `reported_fp32_gflops`,
-    `reported_vram_gb`, `reported_tensor_gflops`, `any_datacenter`,
-    `any_consumer`, `i_3`. The panel is **densified** over each author's active
-    span so zero-output years exist -- without that, the event study would
-    silently drop the very years the effect should show up in.
+    `reported_vram_gb`, `reported_tensor_gflops`, `total_devices`,
+    `newest_release_year`, `any_datacenter`, `any_consumer`, `i_3`. The panel is
+    **densified** over each author's active span so zero-output years exist --
+    without that, the event study would silently drop the very years the effect
+    should show up in.
+
+    `access_percard_fp32_max` and `access_vintage_max` exist for the vendor-frontier
+    distance in `frontier.ipynb`. The vendor frontier is a **single-device** spec,
+    so comparing it to `access_fp32_max` -- a sum over devices -- would conflate
+    scale-out with vintage. Dividing by `total_devices` gives the device-weighted
+    mean per device, exactly the construction `capacity.ipynb` uses for the same
+    overlay in section 5.
     """
     rows = rows.filter(pl.col('year').is_not_null())
     used = pl.col('accel_used').fill_null(False)
@@ -241,6 +258,9 @@ def author_year_panel(rows: pl.DataFrame, key: str = 'corpusid') -> pl.DataFrame
         cit_i3_total=pl.col('i_3').sum(),
         cit_i3_mean=pl.col('i_3').mean(),
         access_fp32_max=pl.col('reported_fp32_gflops').filter(used).max(),
+        access_percard_fp32_max=(pl.col('reported_fp32_gflops').filter(used)
+                                 / pl.col('total_devices').filter(used)).max(),
+        access_vintage_max=pl.col('newest_release_year').filter(used).max(),
         access_vram_max=pl.col('reported_vram_gb').filter(used).max(),
         access_tensor_max=pl.col('reported_tensor_gflops').filter(used).max(),
         access_frac_sum=(pl.col('reported_fp32_gflops').filter(used)
@@ -350,7 +370,8 @@ def find_jumps(panel: pl.DataFrame, jump_ratio: float = JUMP_RATIO) -> pl.DataFr
     jumps = pl.concat(out)
 
     pre = pre_papers_mean(panel, jumps.select('authorid', 'event_year').unique())
-    return jumps.join(pre, on=['authorid', 'event_year'], how='left')
+    return (jumps.join(pre, on=['authorid', 'event_year'], how='left')
+            .sort('event_type', 'authorid'))
 
 
 def pre_papers_mean(panel: pl.DataFrame, events: pl.DataFrame) -> pl.DataFrame:
@@ -429,7 +450,9 @@ def _career_bin(e: pl.Expr) -> pl.Expr:
 def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                    variant: str = 'riskset', n_controls: int = N_CONTROLS,
                    seed: int = SEED,
-                   risk_events: pl.DataFrame | None = None) -> pl.DataFrame:
+                   risk_events: pl.DataFrame | None = None,
+                   candidates: pl.DataFrame | None = None,
+                   extra_stratum: str | None = None) -> pl.DataFrame:
     """(authorid, event_year, control_id) pairs; pseudo-event = jumper's year.
 
     `riskset` — GPU-ever authors who have NOT yet jumped by the jumper's event
@@ -442,6 +465,19 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
 
     Strata: field x career-age bin x pre-period output quartile, with quartiles
     cut on the jumpers' own distribution so the bins are comparable.
+
+    `candidates` restricts eligibility to an explicit (authorid, event_year) frame
+    — the near-miss control arm in `frontier.ipynb`, where a valid control is not
+    "any author who has not yet crossed" but specifically one who reached the band
+    just below the frontier in that year. All the other eligibility rules (full
+    baseline window, a post year, not already treated) still apply on top.
+
+    `extra_stratum` names a panel column, lagged one year and decile-binned, to
+    append to the stratum key — `frontier_gap` for the risk-set arm, so a jumper is
+    compared to authors who started at a similar distance from the frontier rather
+    than merely in the same field and career stage. Do NOT pass it with the
+    near-miss pool: that pool already conditions on position, so the extra
+    dimension only thins the strata.
     """
     if variant not in ('riskset', 'plus_never_gpu'):
         raise ValueError(f'unknown control variant {variant!r}')
@@ -482,6 +518,10 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                                     'control_id': pl.Utf8})
     elig = pl.concat(frames)
 
+    if candidates is not None:
+        elig = elig.join(candidates.select('authorid', 'event_year').unique(),
+                         on=['authorid', 'event_year'], how='semi')
+
     epm = pre_papers_mean(panel, elig.select('authorid', 'event_year'))
     elig = (elig.join(epm, on=['authorid', 'event_year'], how='inner')
             .filter(pl.col('n_pre_years') >= 2))
@@ -501,28 +541,55 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
     cuts = jj['pre_papers_mean'].quantile
     qs = [cuts(q) for q in (0.25, 0.5, 0.75)]
 
+    # optional prior-position dimension, binned on the jumpers' own deciles so the
+    # bins mean the same thing on both sides of the comparison
+    xq = []
+    if extra_stratum is not None:
+        if extra_stratum not in panel.columns:
+            raise ValueError(f'{extra_stratum!r} not in panel')
+        lag = (panel.select('authorid', 'year', extra_stratum)
+               .with_columns(event_year=(pl.col('year').cast(pl.Int32) + 1)
+                             .cast(pl.Int16))
+               .rename({extra_stratum: '_xs'}).drop('year'))
+        jj_x = jumps.select('authorid', 'event_year').join(
+            lag, on=['authorid', 'event_year'], how='left')
+        xq = [jj_x['_xs'].quantile(q) for q in (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7,
+                                               0.8, 0.9)]
+        xq = [q for q in xq if q is not None]
+
     def strat(df: pl.DataFrame, field: str, career: str, ppm: str) -> pl.DataFrame:
-        return df.with_columns(
-            stratum=pl.concat_str([
-                pl.col(field).fill_null('?'),
+        keys = [pl.col(field).fill_null('?'),
                 _career_bin(pl.col(career).cast(pl.Int32)).cast(pl.Utf8),
-                sum((pl.col(ppm) > q).cast(pl.Int32) for q in qs).cast(pl.Utf8),
-            ], separator='|'))
+                sum((pl.col(ppm) > q).cast(pl.Int32) for q in qs).cast(pl.Utf8)]
+        if extra_stratum is not None:
+            df = df.join(lag, on=['authorid', 'event_year'], how='left')
+            keys.append(
+                pl.when(pl.col('_xs').is_null()).then(pl.lit('na'))
+                .otherwise(sum((pl.col('_xs') > q).cast(pl.Int32)
+                               for q in xq).cast(pl.Utf8)))
+        return df.with_columns(stratum=pl.concat_str(keys, separator='|'))
 
     jj = strat(jj, 'field', 'career_at', 'pre_papers_mean')
     elig = elig.with_columns(
         career_at=(pl.lit(1) + pl.col('event_year').cast(pl.Int32) - pl.col('y0')))
     elig = strat(elig, 'modal_field', 'career_at', 'pre_papers_mean')
 
+    # DETERMINISM. polars `group_by` returns groups (and rows within them) in a
+    # nondeterministic order because the hashing is multi-threaded, so a fixed
+    # `seed` alone does NOT reproduce a matching: the rng draws indices into a
+    # differently-ordered candidate array on every run. Sorting the strata, the
+    # jumpers within a stratum, and the candidate ids makes the output a pure
+    # function of (inputs, seed) -- which is the difference between a robustness
+    # check that means something and one that just reshuffles.
     rng = np.random.default_rng(seed)
     pairs = []
-    by_stratum = {(k[0], k[1]): g for k, g in
-                  elig.group_by(['stratum', 'event_year'], maintain_order=True)}
-    for (st, y), g in jj.group_by(['stratum', 'event_year'], maintain_order=True):
-        cands = by_stratum.get((st, y))
-        if cands is None or not cands.height:
+    by_stratum = {(k[0], k[1]): np.sort(g['authorid'].to_numpy())
+                  for k, g in elig.group_by(['stratum', 'event_year'])}
+    for (st, y), g in (jj.sort('stratum', 'event_year', 'authorid')
+                       .group_by(['stratum', 'event_year'], maintain_order=True)):
+        ids = by_stratum.get((st, y))
+        if ids is None or not ids.size:
             continue
-        ids = cands['authorid'].to_numpy()
         for a in g['authorid'].to_list():
             take = ids[ids != a]
             if not take.size:
@@ -534,6 +601,180 @@ def match_controls(panel: pl.DataFrame, jumps: pl.DataFrame, *,
         return pl.DataFrame(schema={'authorid': pl.Utf8, 'event_year': pl.Int16,
                                     'control_id': pl.Utf8})
     return pl.DataFrame(pairs).with_columns(pl.col('event_year').cast(pl.Int16))
+
+
+# ===========================================================================
+# frontier distance (frontier.ipynb)
+# ===========================================================================
+
+def frontier_thresholds(panel: pl.DataFrame, col: str = 'access_fp32_max',
+                        quantiles: tuple = FRONTIER_QUANTILES,
+                        min_year_n: int = MIN_YEAR_N) -> pl.DataFrame:
+    """Within-year quantiles of author access: (year, thr_75, thr_90, thr_95, n_year).
+
+    This is what makes a frontier event immune to the calendar-time problem that
+    dogs the ratio jump. The p90 of author FP32 access rises 3,083 -> 381,580
+    GFLOPS between 2010 and 2025 (124x), so crossing it in 2025 requires vastly
+    more absolute capacity than in 2012, and the secular growth in reported
+    capacity nets out of the event definition rather than having to be controlled.
+
+    Years with fewer than `min_year_n` authors are dropped rather than given a
+    noisy threshold: 2009 has 187 authors with measured access and earlier years
+    fewer, so their quantiles are not estimable. A year with no threshold yields no
+    events, which is the correct behaviour -- 93% of crossings are 2020 or later.
+
+    The reference population is authors with *measured* access in the panel, so
+    this is a within-measured-population frontier, not a population-wide one.
+    """
+    a = panel.filter(pl.col(col).is_not_null())
+    return (a.group_by('year').agg(
+                n_year=pl.len(),
+                **{f'thr_{int(q * 100)}': pl.col(col).quantile(q) for q in quantiles})
+            .filter(pl.col('n_year') >= min_year_n).sort('year'))
+
+
+def frontier_position(panel: pl.DataFrame, thresholds: pl.DataFrame,
+                      col: str = 'access_fp32_max',
+                      quantile: float = 0.90) -> pl.DataFrame:
+    """Panel + `frontier_pct`, `frontier_gap`, `above_frontier`, and their lags.
+
+    `frontier_pct` is the author's percentile rank within the year (continuous
+    position); `frontier_gap` is log10(access / threshold), so 0 is exactly at the
+    frontier and -1 is an order of magnitude below it. Both are null when the
+    author reported no access that year — absence of measurement, not a position.
+    """
+    thr = f'thr_{int(quantile * 100)}'
+    if thr not in thresholds.columns:
+        raise ValueError(f'{thr} not in thresholds; pass quantile in FRONTIER_QUANTILES')
+    p = (panel.join(thresholds.select('year', thr, 'n_year'), on='year', how='left')
+         .sort('authorid', 'year'))
+    has = pl.col(col).is_not_null() & pl.col(thr).is_not_null()
+    p = p.with_columns(
+        above_frontier=(has & (pl.col(col) >= pl.col(thr))).fill_null(False),
+        has_access=has,
+        frontier_gap=pl.when(has).then((pl.col(col) / pl.col(thr)).log10())
+        .otherwise(None))
+    # The rank denominator is the count of authors WITH access that year, not the
+    # row count: nulls (no measured access) are not positions in the distribution,
+    # and dividing by them would compress every percentile toward zero.
+    return p.with_columns(
+        frontier_pct=pl.when(pl.col('has_access'))
+        .then(pl.col(col).rank('average').over('year')
+              / pl.col('has_access').sum().over('year'))
+        .otherwise(None),
+    ).with_columns(
+        prior_above=pl.col('above_frontier').shift(1).cum_max().over('authorid')
+        .fill_null(False),
+        prior_has_access=pl.col('has_access').shift(1).cum_max().over('authorid')
+        .fill_null(False),
+        prior_frontier_gap=pl.col('frontier_gap').shift(1).over('authorid'))
+
+
+def find_frontier_events(panel: pl.DataFrame, *, quantile: float = 0.90,
+                         col: str = 'access_fp32_max',
+                         thresholds: pl.DataFrame | None = None) -> pl.DataFrame:
+    """First frontier crossing per author, as two distinct event types.
+
+    - `frontier_cross`: first year at or above the year's threshold, having
+      reported access at least once *before* and never having been at/above it.
+      A genuine move up the distribution, with a pre-period on the access measure.
+    - `frontier_entry`: the same crossing, but the author's first measured access
+      is already at/above the threshold. Often a well-resourced newcomer, and a
+      different phenomenon with a different selection story — hence a separate
+      event type rather than a larger sample for the first.
+
+    Returns the schema `find_jumps` returns, so `match_controls`, `event_study`,
+    `jump_papers`, `balanced_jumps` and `twoway_fe` all consume it unchanged, plus
+    `pre_frontier_gap` / `event_frontier_pct` for the frontier-specific splits.
+    `jump_ratio` is carried for schema compatibility and is the access ratio to the
+    author's prior max, which is null for `frontier_entry` by construction.
+    """
+    thresholds = (frontier_thresholds(panel, col) if thresholds is None
+                  else thresholds)
+    p = frontier_position(panel, thresholds, col, quantile)
+    thr = f'thr_{int(quantile * 100)}'
+    stock = pl.col(col).fill_null(0.0).cum_max().over('authorid')
+    p = p.with_columns(prior_stock=pl.when(stock > 0).then(stock).otherwise(None)
+                       .shift(1).over('authorid'))
+
+    first = pl.col('above_frontier') & ~pl.col('prior_above')
+    cond = {'frontier_cross': first & pl.col('prior_has_access'),
+            'frontier_entry': first & ~pl.col('prior_has_access')}
+    out = []
+    for et, c in cond.items():
+        e = (p.filter(c).group_by('authorid').agg(event_year=pl.col('year').min())
+             .join(p.select('authorid', 'year', col, thr, 'prior_stock',
+                            'prior_frontier_gap', 'frontier_pct', 'career_year',
+                            'modal_field'),
+                   left_on=['authorid', 'event_year'],
+                   right_on=['authorid', 'year'], how='left')
+             .with_columns(
+                 event_type=pl.lit(et),
+                 event_fp32=pl.col(col),
+                 pre_max_fp32=pl.col('prior_stock'),
+                 jump_ratio=pl.col(col) / pl.col('prior_stock'),
+                 pre_frontier_gap=pl.col('prior_frontier_gap'),
+                 event_frontier_pct=pl.col('frontier_pct'),
+                 event_threshold=pl.col(thr),
+                 career_year_at_event=pl.col('career_year'),
+                 field=pl.col('modal_field'))
+             .select('authorid', 'event_type', 'event_year', 'pre_max_fp32',
+                     'event_fp32', 'jump_ratio', 'pre_frontier_gap',
+                     'event_frontier_pct', 'event_threshold', 'field',
+                     'career_year_at_event'))
+        out.append(e)
+    events = pl.concat(out)
+    pre = pre_papers_mean(panel, events.select('authorid', 'event_year').unique())
+    return (events.join(pre, on=['authorid', 'event_year'], how='left')
+            .sort('event_type', 'authorid'))
+
+
+def near_miss_candidates(panel: pl.DataFrame, thresholds: pl.DataFrame, *,
+                         col: str = 'access_fp32_max', quantile: float = 0.90,
+                         lower_quantile: float = 0.75) -> pl.DataFrame:
+    """(authorid, event_year) control pool: reached [lower, upper) but never crossed.
+
+    The primary control arm, and the reason it is worth the extra machinery: a
+    near-miss author *also* got a capacity upgrade that year, so the contrast is
+    "reached the frontier" rather than "got hardware at all". 19,503 such authors
+    exist against 13,604 crossings, so expect fewer than `N_CONTROLS` matches each
+    — report the match rate rather than widening the strata to force matches.
+    """
+    lo_thr = f'thr_{int(lower_quantile * 100)}'
+    hi_thr = f'thr_{int(quantile * 100)}'
+    for t in (lo_thr, hi_thr):
+        if t not in thresholds.columns:
+            raise ValueError(f'{t} not in thresholds')
+    p = frontier_position(panel, thresholds, col, quantile)
+    ever = (p.group_by('authorid').agg(ever_above=pl.col('above_frontier').any()))
+    return (p.join(thresholds.select('year', lo_thr), on='year', how='left')
+            .join(ever, on='authorid', how='left')
+            .filter(pl.col('has_access') & ~pl.col('ever_above')
+                    & pl.col('prior_has_access')
+                    & (pl.col(col) >= pl.col(lo_thr)))
+            .select('authorid', event_year=pl.col('year')))
+
+
+def vendor_frontier(reg, years, axis: str = 'fp32_gflops',
+                    segment: str = 'datacenter') -> pl.DataFrame:
+    """Best single-device spec available up to each year — the vendor frontier.
+
+    Lifted out of `capacity.ipynb` (its local `frontier()`) so the author-level
+    analysis and the paper-level one cannot drift apart on the definition. Specs
+    come from the registry via `compute.spec_frame`, never from hardcoded values.
+    """
+    from accelscan.compute import spec_frame
+    s = (spec_frame(reg).filter(pl.col('segment') == segment)
+         .filter(pl.col(axis).is_not_null() & pl.col('release_year').is_not_null()))
+    rows = []
+    for y in years:
+        avail = s.filter(pl.col('release_year') <= y)
+        if avail.height:
+            rows.append({'year': int(y), 'vendor_frontier': avail[axis].max(),
+                         'vendor_frontier_year': int(avail['release_year'].max())})
+    return pl.DataFrame(rows, schema={'year': pl.Int64,
+                                      'vendor_frontier': pl.Float64,
+                                      'vendor_frontier_year': pl.Int64})
 
 
 def balanced_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
@@ -688,7 +929,8 @@ def as_share_of_baseline(res: pl.DataFrame, baseline_papers: float) -> pl.DataFr
 
 def placebo_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                   event_type: str = 'ratio_jump', n: int | None = None,
-                  seed: int = SEED) -> pl.DataFrame:
+                  seed: int = SEED,
+                  require: pl.Expr | None = None) -> pl.DataFrame:
     """Pseudo-events on authors who never jump — a placebo with a null expectation.
 
     The obvious alternative, shifting real jumpers' event years backwards, does
@@ -710,18 +952,29 @@ def placebo_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
     control pool cannot quietly supply authors who really did jump.
     """
     real = jumps.filter(pl.col('event_type') == event_type)
-    years = real['event_year'].drop_nulls().to_numpy()
-    a = (panel.group_by('authorid').agg(
+    # sorted, so the pseudo-year draw does not depend on the incoming row order
+    # (which `find_jumps`'s group_by leaves nondeterministic)
+    years = np.sort(real['event_year'].drop_nulls().to_numpy())
+    # `require` narrows the pool to authors who could plausibly have had the event.
+    # For a frontier crossing that means authors with at least one year of measured
+    # ACCESS, not merely `ever_gpu`: an author whose accelerator papers never had a
+    # spec'd model can never cross a capacity threshold, so including them would
+    # dilute the placebo with units that were never at risk.
+    src = panel if require is None else panel.filter(require)
+    a = (src.group_by('authorid').agg(
             pl.first('modal_field'), pl.first('y0'), pl.first('y1'),
             pl.first('ever_gpu'))
          .filter(pl.col('ever_gpu'))
          .join(real.select('authorid'), on='authorid', how='anti'))
     if not a.height or not years.size:
         return real.head(0)
+    a = a.sort('authorid')
     if n and n < a.height:
         a = a.sample(n=n, seed=seed)
     rng = np.random.default_rng(seed)
-    a = a.with_columns(event_year=pl.Series(rng.choice(years, a.height)).cast(pl.Int16))
+    a = (a.sort('authorid')
+         .with_columns(event_year=pl.Series(rng.choice(years, a.height))
+                       .cast(pl.Int16)))
     # the pseudo-date is drawn independently of the career, so keep only the
     # authors whose observed span actually brackets the window
     out = (a.filter(
@@ -735,7 +988,8 @@ def placebo_jumps(panel: pl.DataFrame, jumps: pl.DataFrame, *,
                    event_type=pl.lit(event_type)))
     return (out.join(pre_papers_mean(panel, out.select('authorid', 'event_year')),
                      on=['authorid', 'event_year'], how='inner')
-            .filter(pl.col('n_pre_years') >= 2))
+            .filter(pl.col('n_pre_years') >= 2)
+            .sort('authorid'))
 
 
 def _demeaned(panel: pl.DataFrame, events: pl.DataFrame, outcome: str,
@@ -869,7 +1123,8 @@ def build_panel(so: dict, client, c: Corpus, release_id: str, rv: str,
         s3_uri(capacity_key(c, rv, prompt_version, model_tag, count_policy)),
         storage_options=so,
         columns=[c.key, 'reported_fp32_gflops', 'reported_vram_gb',
-                 'reported_tensor_gflops', 'any_datacenter', 'any_consumer'])
+                 'reported_tensor_gflops', 'total_devices', 'newest_release_year',
+                 'any_datacenter', 'any_consumer'])
     cits = pl.read_parquet(f'{s3_uri(base)}/citations.parquet', storage_options=so,
                            columns=[c.key, 'i_3'])
     print(f'flags {flags.height:,} | capacity {cap.height:,} | citations '
@@ -948,11 +1203,13 @@ def _trim_never_gpu(panel: pl.DataFrame, active_fields: list[str],
     rng = np.random.default_rng(seed)
     keep, short = [], 0
     tmap = {(r['modal_field'], r['decade']): r['need'] for r in target.iter_rows(named=True)}
-    for k, g in cands.group_by(['modal_field', 'decade']):
+    # sorted groups and sorted ids, for the same determinism reason as match_controls
+    for k, g in (cands.sort('modal_field', 'decade', 'authorid')
+                 .group_by(['modal_field', 'decade'], maintain_order=True)):
         need = tmap.get((k[0], k[1]), 0)
         if not need:
             continue
-        ids = g['authorid'].to_numpy()
+        ids = np.sort(g['authorid'].to_numpy())
         if ids.size < need:
             short += 1
         pick = rng.choice(ids, size=min(need, ids.size), replace=False)

@@ -78,6 +78,13 @@ def rows() -> pl.DataFrame:
                 any_consumer=~pl.col('any_datacenter'),
                 reported_vram_gb=pl.col('reported_fp32_gflops') / 1000,
                 reported_tensor_gflops=pl.col('reported_fp32_gflops') * 2,
+                # paper 4 (a1's jump) is an 8-GPU cluster, everything else a single
+                # card -- so the per-device column is genuinely exercised rather
+                # than being a copy of the per-paper one
+                total_devices=pl.when(pl.col('corpusid') == 4).then(8.0)
+                .otherwise(1.0),
+                newest_release_year=pl.when(pl.col('accel_used'))
+                .then(pl.col('year').cast(pl.Int32) - 2).otherwise(None),
                 # the pipeline gates access on full text before panel assembly
                 accel_used=pl.col('accel_used') & pl.col('fulltext')))
 
@@ -586,3 +593,226 @@ def test_balanced_jumps_keeps_only_fully_observable_windows():
         y1=pl.when(pl.col('authorid').str.starts_with('j')).then(2013)
         .otherwise(pl.col('y1')))
     assert au.balanced_jumps(short, jumps).height == 0
+
+
+# --- frontier distance --------------------------------------------------------
+
+def test_per_device_access_column(panel):
+    """The vendor frontier is a single-device spec, so the author side has to be
+    per device too -- otherwise scale-out is mistaken for vintage."""
+    a1 = panel.filter(pl.col('authorid') == 'a1').sort('year')
+    # 2016: 15,000 GFLOPS across 8 devices
+    y16 = a1.filter(pl.col('year') == 2016)
+    assert y16['access_fp32_max'].item() == 15_000.0
+    assert y16['access_percard_fp32_max'].item() == 15_000.0 / 8
+    assert y16['access_vintage_max'].item() == 2014
+    # single-device years: the two columns coincide
+    y13 = a1.filter(pl.col('year') == 2013)
+    assert y13['access_percard_fp32_max'].item() == y13['access_fp32_max'].item()
+    # never above the per-paper figure, anywhere
+    both = panel.filter(pl.col('access_fp32_max').is_not_null())
+    assert (both['access_percard_fp32_max'] <= both['access_fp32_max']).all()
+
+
+def _frontier_panel(seed=0, n=400):
+    """Authors whose access grows, against a threshold that grows faster.
+
+    The point of the design under test: because the threshold is a within-year
+    quantile, an author whose absolute capacity rises steadily does NOT drift
+    across it. Only a relative move does.
+    """
+    rng = np.random.default_rng(seed)
+    rec = []
+    for i in range(n):
+        aid = f'a{i}'
+        base = 10 ** rng.uniform(2, 4)
+        # a1x authors make a big relative move in 2015; the rest track the median
+        mover = i % 4 == 0
+        for year in range(2008, 2021):
+            g = base * (1.35 ** (year - 2008))       # everyone grows with the field
+            if mover and year >= 2015:
+                g *= 30
+            rec.append({'authorid': aid, 'year': year, 'n_papers': 3.0,
+                        'n_accel': 1, 'access_fp32_max': g,
+                        'modal_field': 'Computer Science', 'ever_gpu': True,
+                        'y0': 2008, 'y1': 2020, 'career_year': year - 2007,
+                        'control_sample': 'gpu_ever'})
+    return pl.DataFrame(rec).with_columns(pl.col('year').cast(pl.Int16))
+
+
+def test_frontier_thresholds_rise_and_are_ordered():
+    panel = _frontier_panel()
+    thr = au.frontier_thresholds(panel, min_year_n=50)
+    assert thr.height == 13, 'every year has 400 authors with access'
+    assert (thr['thr_75'] <= thr['thr_90']).all()
+    assert (thr['thr_90'] <= thr['thr_95']).all()
+    # the threshold itself grows over time, which is what nets out secular growth
+    assert thr.sort('year')['thr_90'].to_list() == sorted(thr['thr_90'].to_list())
+
+
+def test_thin_years_get_no_threshold_and_so_no_events():
+    panel = _frontier_panel(n=400)
+    thin = panel.filter((pl.col('year') != 2012)
+                        | (pl.col('authorid').str.slice(1).cast(pl.Int32) < 10))
+    thr = au.frontier_thresholds(thin, min_year_n=50)
+    assert 2012 not in thr['year'].to_list(), 'a 10-author year is not estimable'
+    ev = au.find_frontier_events(thin, thresholds=thr)
+    assert 2012 not in ev['event_year'].to_list()
+
+
+def test_frontier_position_ranks_only_authors_with_access():
+    """A null access year is not a position in the distribution. If nulls entered
+    the rank denominator every percentile would be compressed toward zero."""
+    panel = _frontier_panel(n=100)
+    # blank out access for half the authors in 2015
+    holed = panel.with_columns(
+        access_fp32_max=pl.when((pl.col('year') == 2015)
+                                & (pl.col('authorid').str.slice(1)
+                                   .cast(pl.Int32) < 50))
+        .then(None).otherwise(pl.col('access_fp32_max')))
+    thr = au.frontier_thresholds(holed, min_year_n=10)
+    pos = au.frontier_position(holed, thr)
+    y = pos.filter((pl.col('year') == 2015) & pl.col('has_access'))
+    assert y.height == 50
+    assert y['frontier_pct'].max() == pytest.approx(1.0)
+    assert y['frontier_pct'].min() == pytest.approx(1 / 50)
+    assert pos.filter((pl.col('year') == 2015) & ~pl.col('has_access'))[
+        'frontier_pct'].null_count() == 50
+
+
+def test_frontier_cross_separates_from_frontier_entry():
+    panel = _frontier_panel()
+    ev = au.find_frontier_events(panel)
+    assert set(ev['event_type'].unique()) <= set(au.FRONTIER_EVENT_TYPES)
+    cross = ev.filter(pl.col('event_type') == 'frontier_cross')
+    entry = ev.filter(pl.col('event_type') == 'frontier_entry')
+    # the high-base authors are already above p90 in their FIRST observed year, so
+    # they are entries, not crossings -- there is no prior year to have moved from
+    assert entry.height and entry['event_year'].unique().to_list() == [2008]
+    assert entry['pre_max_fp32'].null_count() == entry.height
+    # everyone else crosses in the year they move, and only then
+    assert cross.height and cross['event_year'].unique().to_list() == [2015]
+    assert cross['pre_frontier_gap'].max() < 0, 'below the frontier beforehand'
+    assert (cross['event_fp32'] >= cross['event_threshold']).all()
+    # the two types partition: no author is both
+    assert ev.group_by('authorid').agg(n=pl.len()).filter(pl.col('n') > 1).height == 0
+
+
+def test_frontier_entry_is_an_author_with_no_prior_access():
+    panel = _frontier_panel(n=200)
+    # a2000 shows up only in 2016, already at the top
+    late = pl.DataFrame([{'authorid': 'zz', 'year': y, 'n_papers': 3.0, 'n_accel': 1,
+                          'access_fp32_max': 1e9 if y >= 2016 else None,
+                          'modal_field': 'Computer Science', 'ever_gpu': True,
+                          'y0': 2016, 'y1': 2020, 'career_year': y - 2015,
+                          'control_sample': 'gpu_ever'}
+                         for y in range(2016, 2021)]).with_columns(
+        pl.col('year').cast(pl.Int16))
+    ev = au.find_frontier_events(pl.concat([panel, late], how='diagonal'))
+    zz = ev.filter(pl.col('authorid') == 'zz')
+    assert zz['event_type'].to_list() == ['frontier_entry']
+    assert zz['event_year'].item() == 2016
+    assert zz['pre_max_fp32'].item() is None, 'no prior access by construction'
+
+
+def test_absolute_growth_alone_does_not_cross_the_frontier():
+    """The headline property. Everyone's capacity grows 1.35x/yr; only the relative
+    movers cross. A ratio-based event would fire for the growth itself."""
+    panel = _frontier_panel()
+    ev = au.find_frontier_events(panel).filter(
+        pl.col('event_type') == 'frontier_cross')
+    movers = {a for a in panel['authorid'].unique().to_list()
+              if int(a[1:]) % 4 == 0}
+    crossers = set(ev['authorid'])
+    assert crossers, 'the relative movers should cross'
+    assert crossers <= movers, f'{len(crossers) - len(crossers & movers)} non-movers crossed'
+    # Not ALL movers cross, and that is the design working: a quarter of the panel
+    # multiplying by 30 drags the p90 threshold up with them, so only the movers who
+    # end up in the top decile of the NEW distribution qualify. A threshold that
+    # responds to the population is the whole point of a percentile event.
+    assert len(crossers) < len(movers)
+
+
+def test_near_miss_candidates_exclude_ever_crossers():
+    panel = _frontier_panel()
+    thr = au.frontier_thresholds(panel)
+    nm = au.near_miss_candidates(panel, thr)
+    ev = au.find_frontier_events(panel, thresholds=thr)
+    assert nm.height
+    assert not (set(nm['authorid']) & set(ev['authorid'])), \
+        'a near-miss control must never have crossed the frontier'
+
+
+def test_match_controls_candidates_restricts_the_pool():
+    panel, jumps = _synthetic_panel(n_jumpers=40, n_controls=200)
+    allowed = (panel.filter(pl.col('authorid').str.starts_with('c'))
+               .select('authorid').unique().head(30)
+               .with_columns(event_year=pl.lit(2010, dtype=pl.Int16)))
+    wide = au.match_controls(panel, jumps, seed=au.SEED)
+    narrow = au.match_controls(panel, jumps, seed=au.SEED, candidates=allowed)
+    assert narrow.height
+    assert set(narrow['control_id']) <= set(allowed['authorid'])
+    # the unrestricted run does draw from outside the allowed pool, so the
+    # restriction is doing something rather than being trivially satisfied
+    assert set(wide['control_id']) - set(allowed['authorid'])
+
+
+def test_match_controls_extra_stratum_changes_the_matching():
+    panel, jumps = _synthetic_panel(n_jumpers=40, n_controls=200)
+    panel = panel.with_columns(
+        pos=pl.when(pl.col('authorid').str.starts_with('j')).then(1.0)
+        .otherwise(pl.col('authorid').str.slice(1).cast(pl.Float64) % 7))
+    base = au.match_controls(panel, jumps, seed=au.SEED)
+    with_x = au.match_controls(panel, jumps, seed=au.SEED, extra_stratum='pos')
+    assert with_x.height and with_x.height <= base.height
+    assert set(map(tuple, with_x.rows())) != set(map(tuple, base.rows()))
+    with pytest.raises(ValueError, match='not in panel'):
+        au.match_controls(panel, jumps, extra_stratum='nope')
+
+
+def test_vendor_frontier_is_monotone_and_registry_sourced():
+    from accelscan.registry import load_registry
+    vf = au.vendor_frontier(load_registry(), range(2008, 2026))
+    assert vf.height > 10
+    v = vf.sort('year')['vendor_frontier'].to_list()
+    assert v == sorted(v), 'best-available-so-far cannot fall'
+    yr = vf.sort('year')['vendor_frontier_year'].to_list()
+    assert yr == sorted(yr)
+    assert (vf['vendor_frontier_year'] <= vf['year']).all(), 'no unreleased cards'
+
+
+def test_existing_estimators_are_unchanged_by_the_new_parameters():
+    """Non-regression: authors.ipynb results must not move. The new arguments all
+    default to None, so the old paths have to produce identical output."""
+    panel, jumps = _synthetic_panel(n_jumpers=40, n_controls=100)
+    a = au.match_controls(panel, jumps, seed=au.SEED)
+    b = au.match_controls(panel, jumps, seed=au.SEED, candidates=None,
+                          extra_stratum=None, risk_events=None)
+    assert a.rows() == b.rows()
+    p1 = au.placebo_jumps(panel, jumps.with_columns(event_type=pl.lit('ratio_jump')),
+                          seed=au.SEED)
+    p2 = au.placebo_jumps(panel, jumps.with_columns(event_type=pl.lit('ratio_jump')),
+                          seed=au.SEED, require=None)
+    assert p1.rows() == p2.rows()
+
+
+def test_control_matching_is_reproducible():
+    """A fixed seed must reproduce a matching exactly.
+
+    It did not: `polars.group_by` orders groups and their rows nondeterministically
+    (multi-threaded hashing), so the rng drew indices into a differently-ordered
+    candidate array on each run and the control sets wobbled between runs of the
+    same notebook. Every sampling site now sorts first.
+    """
+    panel, jumps = _synthetic_panel(n_jumpers=20, n_controls=80)
+    j = jumps.with_columns(event_type=pl.lit('ratio_jump'))
+    runs = [au.match_controls(panel, jumps, seed=au.SEED)
+            .sort('authorid', 'control_id').rows() for _ in range(5)]
+    assert all(r == runs[0] for r in runs), 'match_controls is not reproducible'
+    pl_runs = [au.placebo_jumps(panel, j, seed=au.SEED).sort('authorid').rows()
+               for _ in range(5)]
+    assert all(r == pl_runs[0] for r in pl_runs), 'placebo_jumps is not reproducible'
+    # and a different seed must actually give a different matching
+    other = au.match_controls(panel, jumps, seed=au.SEED + 1).sort(
+        'authorid', 'control_id').rows()
+    assert other != runs[0]
