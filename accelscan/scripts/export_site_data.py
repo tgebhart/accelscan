@@ -2,10 +2,12 @@
 
 Two artifacts land under `--out` (default `site_data/`):
 
-1. `charts/*.json` — the 7 headline figures (capacity/trends/productivity),
+1. `charts/*.json` — the headline figures (capacity/trends/productivity),
    computed by `accelscan.webexport` against the same analytic/capacity tables
    the notebooks read. Same functions the notebooks call, so the website's
-   numbers can never drift from the PDF figures.
+   numbers can never drift from the PDF figures. (Not every `webexport`
+   function has a chart here -- the paper-reporting-extraction-funnel figure
+   is PDF-only, dropped from the site as redundant with the drill-down page.)
 2. `mentions/year=YYYY/part-0.parquet` (hive-partitioned) + `manifest.json` —
    every `status=='ok'` mention, canonicalized and joined to arXiv title/
    category metadata, for the paper-drill-down page's DuckDB-WASM queries.
@@ -159,11 +161,6 @@ def build_charts(cap: pl.DataFrame, top_fields: list, papers: pl.DataFrame,
         'overall': we.prevalence_series(papers, min_papers=min_papers).to_dicts(),
         'by_field': we.field_prevalence(papers, fields_top, other=OTHER, min_papers=100).to_dicts(),
     }
-    charts['funnel'] = {
-        'funnel': we.extraction_funnel(papers),
-        'specificity': we.specificity_share(papers, min_papers=50).to_dicts(),
-    }
-
     top_models = (pm.group_by('canonical_model', 'display', 'release_year')
                   .agg(papers=pl.len())
                   .filter(pl.col('papers') >= min_papers_model)

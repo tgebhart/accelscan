@@ -35,7 +35,6 @@ interface CompositionRow { year: number; seg: string; n: number; }
 interface PrevalenceOverallRow { year: number; n: number; any_share: number;
                                  used_share: number; modelspec_share: number; cand_share: number; }
 interface PrevalenceFieldRow { seg: string; year: number; n: number; used: number; }
-interface SpecificityRow { year: number; n: number; specific: number; }
 interface DeviceLifeRow { canonical_model: string; year: number; display: string;
                           release_year: number; since_release: number; papers: number; }
 
@@ -153,34 +152,6 @@ function renderPrevalenceByField(divId: string, rows: PrevalenceFieldRow[], fiel
   });
 }
 
-// --- funnel + specificity ------------------------------------------------------
-
-function renderFunnel(divId: string, funnel: Record<string, number>): void {
-  const labels = Object.keys(funnel);
-  const values = labels.map((l) => funnel[l]);
-  const total = values[0];
-  plot(divId, [{
-    type: 'bar', orientation: 'h', x: values, y: labels,
-    text: values.map((v) => `${v.toLocaleString()} (${(100 * v / total).toFixed(2)}%)`),
-    textposition: 'outside',
-    marker: { color: ['#999999', '#56B4E9', '#0072B2', '#D55E00', '#009E73'] },
-  }], {
-    xaxis: { type: 'log', dtick: 1, title: 'Papers (log)' },
-    yaxis: { autorange: 'reversed' },
-    margin: { t: 28, r: 90, b: 42, l: 190 },
-  });
-}
-
-function renderSpecificity(divId: string, rows: SpecificityRow[]): void {
-  plot(divId, [{
-    x: rows.map((r) => r.year), y: rows.map((r) => 100 * r.specific),
-    type: 'scatter', mode: 'lines+markers', line: { color: '#0072B2' }, marker: { size: 5 },
-  }], {
-    xaxis: { title: 'Year' },
-    yaxis: { title: 'Percentage naming a specific model', range: [0, 100] },
-  });
-}
-
 // --- device life ---------------------------------------------------------------
 
 function renderDeviceLife(divId: string, rows: DeviceLifeRow[]): void {
@@ -205,7 +176,7 @@ function renderDeviceLife(divId: string, rows: DeviceLifeRow[]): void {
 // --- wire-up ---------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const [computeMemory, byField, spread, composition, prevalence, funnel, deviceLife] =
+  const [computeMemory, byField, spread, composition, prevalence, deviceLife] =
     await Promise.all([
       loadJSON<ComputeMemoryChart>('compute_memory'),
       loadJSON<{ fields: string[]; compute: FieldSeries[]; memory: FieldSeries[] }>(
@@ -216,7 +187,6 @@ async function main(): Promise<void> {
         'corpus_composition'),
       loadJSON<{ fields: string[]; overall: PrevalenceOverallRow[]; by_field: PrevalenceFieldRow[] }>(
         'prevalence'),
-      loadJSON<{ funnel: Record<string, number>; specificity: SpecificityRow[] }>('funnel'),
       loadJSON<{ series: DeviceLifeRow[] }>('device_life'),
     ]);
 
@@ -238,9 +208,6 @@ async function main(): Promise<void> {
 
   renderPrevalenceOverall('chart-prevalence-overall', prevalence.overall);
   renderPrevalenceByField('chart-prevalence-field', prevalence.by_field, prevalence.fields);
-
-  renderFunnel('chart-funnel', funnel.funnel);
-  renderSpecificity('chart-specificity', funnel.specificity);
 
   renderDeviceLife('chart-device-life', deviceLife.series);
 }

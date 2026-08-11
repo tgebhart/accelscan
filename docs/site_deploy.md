@@ -1,6 +1,6 @@
 # Deploying the public arXiv-results website
 
-The site (`site/`) is a static bundle: 7 headline charts (Plotly.js) plus a
+The site (`site/`) is a static bundle: 6 headline charts (Plotly.js) plus a
 paper drill-down browser that queries published parquet directly from the
 visitor's browser (DuckDB-WASM). There is no backend, no database service,
 and no server to operate — hosting is a public-read S3 bucket behind
@@ -80,7 +80,7 @@ npm --prefix site install
 npm --prefix site run dev                   # http://localhost:5173
 ```
 
-Check: all 7 charts render on the home page, the paper browser's filters and
+Check: all 6 charts render on the home page, the paper browser's filters and
 pagination work, and every "view on arXiv" link resolves. `npm --prefix site
 run build && npx --prefix site vite preview` serves the production build the
 same way, for a closer check before syncing to S3.

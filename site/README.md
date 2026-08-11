@@ -1,6 +1,6 @@
 # accelscan-site
 
-The public arXiv-results website: 7 headline charts (Plotly.js) plus a
+The public arXiv-results website: 6 headline charts (Plotly.js) plus a
 paper drill-down browser (DuckDB-WASM querying the published parquet directly
 in the visitor's browser). No backend — everything here builds to static
 files.
