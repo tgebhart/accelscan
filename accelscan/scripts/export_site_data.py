@@ -136,7 +136,12 @@ def build_charts(cap: pl.DataFrame, top_fields: list, papers: pl.DataFrame,
                    'frontier': we.frontier(specs, 'vram_gb', year_min, year_max).to_dicts()},
     }
 
-    seg = (cap.filter(pl.col('field').is_not_null() & pl.col('year').is_between(2014, year_max))
+    # 2010, not year_min (2005 by default): matches the site's fixed chart
+    # x-axis range (site/src/charts.ts YEAR_RANGE) so this panel's data starts
+    # where every other chart's axis starts. Not a data-availability floor --
+    # verified field-year counts already clear the n>=10 floor below well
+    # before 2010 for the larger fields (e.g. Physics from 2007, CS from 2010).
+    seg = (cap.filter(pl.col('field').is_not_null() & pl.col('year').is_between(2010, year_max))
            .with_columns(seg=pl.when(pl.col('field').is_in(top_fields))
                               .then(pl.col('field')).otherwise(pl.lit(OTHER))))
     charts['compute_fp32_memory_vram_by_field'] = {
