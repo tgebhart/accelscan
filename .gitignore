@@ -6,6 +6,8 @@ __pycache__/
 data/
 output/
 slurm/slurm-*.out
+site_data/
+site/public/data
 
 # editor-local settings
 .vscode/

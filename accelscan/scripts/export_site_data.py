@@ -63,10 +63,15 @@ def load_capacity(c, reg, so, prompt_version: str, model_tag: str, count_policy:
                   .filter(pl.col('field').is_not_null())
                   .group_by('field').agg(n=pl.len()).sort('n', descending=True)
                   .head(top_fields_n)['field'].to_list())
-    # Per-device counterparts: the frontier is a single-device spec.
+    # Per-device counterparts: the frontier is a single-device spec. A handful
+    # of rows (14 of 201,813 at v0.4.0) have total_devices == 0 -- a floored-
+    # count artifact, not a real zero-device paper -- which would otherwise
+    # divide 0/0 to NaN and poison every downstream sum() it touches.
     cap = cap.with_columns(
-        per_device_fp32_gflops=pl.col('reported_fp32_gflops') / pl.col('total_devices'),
-        per_device_vram_gb=pl.col('reported_vram_gb') / pl.col('total_devices'))
+        per_device_fp32_gflops=pl.when(pl.col('total_devices') > 0)
+            .then(pl.col('reported_fp32_gflops') / pl.col('total_devices')),
+        per_device_vram_gb=pl.when(pl.col('total_devices') > 0)
+            .then(pl.col('reported_vram_gb') / pl.col('total_devices')))
     return cap, top_fields
 
 
@@ -191,12 +196,30 @@ def build_drilldown(c, reg, so, prompt_version: str, model_tag: str) -> pl.DataF
     return out
 
 
+def _sanitize_nans(obj):
+    """Replace float NaN/Infinity with None, recursively.
+
+    Python's `json` module serializes these as bare `NaN`/`Infinity` tokens,
+    which are not valid JSON and fail `JSON.parse` in every browser. The
+    upstream data shouldn't produce them (see the total_devices==0 guard
+    above), but this is the last line of defense against a future source of
+    the same problem breaking the site instead of just this file's numbers.
+    """
+    if isinstance(obj, float):
+        return None if (obj != obj or obj in (float('inf'), float('-inf'))) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_nans(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_nans(v) for v in obj]
+    return obj
+
+
 def write_charts(charts: dict, out: Path) -> None:
     charts_dir = out / 'charts'
     charts_dir.mkdir(parents=True, exist_ok=True)
     for name, payload in charts.items():
         with open(charts_dir / f'{name}.json', 'w') as f:
-            json.dump(payload, f, separators=(',', ':'))
+            json.dump(_sanitize_nans(payload), f, separators=(',', ':'))
 
 
 def write_drilldown(drill: pl.DataFrame, key: str, out: Path) -> None:
