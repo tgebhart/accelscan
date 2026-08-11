@@ -6,6 +6,12 @@ import './style.css';
 const PAL = ['#0072B2', '#D55E00', '#009E73', '#E69F00', '#CC79A7', '#56B4E9',
              '#DDCC77', '#882255', '#999999'];
 
+// Every chart with an actual calendar-year x-axis shares this range, so a
+// panel whose series happens to start later (a field with too few papers
+// before some year, say) is still plotted against the same span as every
+// other chart rather than auto-zooming to its own data.
+const YEAR_RANGE: [number, number] = [2010, 2026];
+
 const DATA_ROOT = 'data/charts';
 
 async function loadJSON<T>(name: string): Promise<T> {
@@ -63,7 +69,8 @@ function renderComputeMemory(divId: string, axis: AxisPayload, scale: number, un
   // dtick: 1 restricts a log axis to major ticks at each power of ten -- Plotly's
   // default also draws minor ticks at 2 and 5 within each decade.
   plot(divId, traces, {
-    yaxis: { type: 'log', dtick: 1, title: unit }, xaxis: { title: 'Year' },
+    yaxis: { type: 'log', dtick: 1, title: unit },
+    xaxis: { title: 'Year', range: YEAR_RANGE },
   });
 }
 
@@ -80,7 +87,7 @@ function renderByField(divId: string, rows: FieldSeries[], fields: string[], sca
       marker: { size: 4 },
     };
   });
-  plot(divId, traces, { xaxis: { title: 'Year' }, yaxis: { title: unit } });
+  plot(divId, traces, { xaxis: { title: 'Year', range: YEAR_RANGE }, yaxis: { title: unit } });
 }
 
 // --- spread (p90/median ratio, smoothed) -------------------------------------
@@ -100,7 +107,7 @@ function renderSpread(divId: string, rows: SpreadRow[], fields: string[], subtit
   });
   plot(divId, traces, {
     title: { text: subtitle, font: { size: 12 } },
-    xaxis: { title: 'Year' },
+    xaxis: { title: 'Year', range: YEAR_RANGE },
     yaxis: { title: '90%-ile / median (3-yr moving average)' },
     shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 1, y1: 1,
               line: { color: '#999999', dash: 'dot', width: 1 } }],
@@ -119,7 +126,9 @@ function renderCorpusComposition(divId: string, rows: CompositionRow[], segments
       ? '#EEEEEE' : PAL[i % PAL.length] },
   }));
   plot(divId, traces, {
-    barmode: 'stack', xaxis: { title: 'Year' }, yaxis: { title: 'Full-text papers' },
+    barmode: 'stack',
+    xaxis: { title: 'Year', range: YEAR_RANGE },
+    yaxis: { title: 'Full-text papers' },
   });
 }
 
@@ -134,7 +143,8 @@ function renderPrevalenceOverall(divId: string, rows: PrevalenceOverallRow[]): v
     line('any_share', 'any accelerator mention', '#0072B2'),
     line('used_share', 'reports using an accelerator', '#D55E00'),
     line('modelspec_share', 'names and uses a specific model', '#009E73'),
-  ], { xaxis: { title: 'Year' }, yaxis: { title: 'Percentage of full-text papers' } });
+  ], { xaxis: { title: 'Year', range: YEAR_RANGE },
+       yaxis: { title: 'Percentage of full-text papers' } });
 }
 
 function renderPrevalenceByField(divId: string, rows: PrevalenceFieldRow[], fields: string[]): void {
@@ -148,7 +158,8 @@ function renderPrevalenceByField(divId: string, rows: PrevalenceFieldRow[], fiel
     };
   });
   plot(divId, traces, {
-    xaxis: { title: 'Year' }, yaxis: { title: 'Percentage of field papers reporting use' },
+    xaxis: { title: 'Year', range: YEAR_RANGE },
+    yaxis: { title: 'Percentage of field papers reporting use' },
   });
 }
 
