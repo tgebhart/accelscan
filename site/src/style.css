@@ -93,7 +93,26 @@ main { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
 }
 .filters input[type="text"] { flex: 1 1 240px; }
 
-.status-line { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem; }
+.status-line {
+  color: var(--muted); font-size: 0.85rem; margin-bottom: 0.75rem;
+  display: flex; align-items: center; gap: 0.5rem; min-height: 1.2rem;
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex: 0 0 auto;
+}
+.spinner[hidden] { display: none; }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 table.results { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 table.results th, table.results td {

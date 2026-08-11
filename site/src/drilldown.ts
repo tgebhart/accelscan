@@ -48,6 +48,10 @@ function esc(s: string): string {
   return s.replace(/'/g, "''");
 }
 
+function setLoading(loading: boolean): void {
+  (document.getElementById('spinner') as HTMLElement).hidden = !loading;
+}
+
 // Only the year files the current filter actually needs are ever fetched --
 // selecting a narrow year range keeps this to a handful of megabytes instead
 // of the whole ~35MB bundle.
@@ -71,11 +75,13 @@ function whereClause(): string {
 async function runQuery(): Promise<void> {
   const statusEl = document.getElementById('status')!;
   const bodyEl = document.getElementById('results-body')!;
-  statusEl.textContent = 'Querying…';
+  setLoading(true);
+  statusEl.textContent = '';
 
   const files = filesForYears(state.yearMin, state.yearMax);
   if (!files.length) {
     bodyEl.innerHTML = '';
+    setLoading(false);
     statusEl.textContent = 'No years selected.';
     return;
   }
@@ -112,11 +118,16 @@ async function runQuery(): Promise<void> {
 
     const from1 = total === 0 ? 0 : state.page * PAGE_SIZE + 1;
     const to = Math.min(total, (state.page + 1) * PAGE_SIZE);
+    setLoading(false);
     statusEl.textContent = `${total.toLocaleString()} matching mentions — showing ${from1}-${to}`;
     (document.getElementById('page-label') as HTMLElement).textContent =
       `page ${state.page + 1} of ${Math.max(1, Math.ceil(total / PAGE_SIZE))}`;
     (document.getElementById('prev-page') as HTMLButtonElement).disabled = state.page === 0;
     (document.getElementById('next-page') as HTMLButtonElement).disabled = to >= total;
+  } catch (err) {
+    console.error(err);
+    setLoading(false);
+    statusEl.textContent = 'Query failed. Try a narrower filter or reload the page.';
   } finally {
     await conn.close();
   }
@@ -190,7 +201,8 @@ function wireFilters(): void {
 }
 
 async function main(): Promise<void> {
-  const statusEl = document.getElementById('status')!;
+  // The spinner is visible by default (papers.html has no `hidden` attribute
+  // on it) so it's already showing from first paint through this setup step.
   const [manifestRes, instance] = await Promise.all([
     fetch(`${DATA_ROOT}manifest.json`), initDuckDB(),
   ]);
@@ -203,13 +215,12 @@ async function main(): Promise<void> {
   populateSelect('f-usage', manifest.by_usage_context);
   wireFilters();
 
-  statusEl.textContent = `${manifest.n_mentions.toLocaleString()} mentions across ` +
-    `${manifest.n_papers.toLocaleString()} papers loaded (index only) — querying…`;
   await runQuery();
 }
 
 main().catch((err) => {
   console.error(err);
+  setLoading(false);
   document.getElementById('status')!.textContent =
     'Failed to load the paper index. Please try reloading the page.';
 });

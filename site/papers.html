@@ -31,7 +31,10 @@
       <select id="f-manufacturer"><option value="">All manufacturers</option></select>
       <select id="f-usage"><option value="">All usage contexts</option></select>
     </div>
-    <div class="status-line" id="status">Loading…</div>
+    <div class="status-line">
+      <span id="spinner" class="spinner" aria-hidden="true"></span>
+      <span id="status"></span>
+    </div>
 
     <table class="results">
       <thead>
