@@ -11,6 +11,18 @@ CloudFront, and "redeploying" is re-running one script.
 Everything below is plain `aws` CLI — no Terraform/CDK, to keep this a small,
 auditable list of commands rather than another thing to maintain.
 
+This all runs against the **site-hosting AWS account** — a separate, full-
+fledged account from MSI's S3-compatible endpoint that `AWS_ACCESS_KEY_ID`/
+`AWS_SECRET_ACCESS_KEY` normally point at. Before running these commands,
+make sure your shell's active AWS identity is the site-hosting account, e.g.:
+
+```bash
+set -a; source .env; set +a
+export AWS_ACCESS_KEY_ID="$SITE_AWS_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$SITE_AWS_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION="${SITE_AWS_REGION:-us-east-1}"
+```
+
 ```bash
 BUCKET=accelscan-site        # pick a globally-unique name
 REGION=us-east-1
@@ -56,16 +68,19 @@ public URL respectively.
 
 ```bash
 cd accelscan
-set -a; source .env; set +a               # MSI S3 read credentials
+set -a; source .env; set +a               # MSI creds + SITE_AWS_* (both accounts)
 export SITE_BUCKET=accelscan-site
 export SITE_CLOUDFRONT_DIST_ID=E1234EXAMPLE
 ./scripts/deploy_site.sh
 ```
 
 This runs `accelscan.scripts.export_site_data` (reads the arXiv analytic/
-capacity/mentions tables from MSI S3, writes `site_data/` locally), builds
-`site/` with `npm run build`, syncs both to the bucket, and invalidates the
-CloudFront cache. Nothing runs on a schedule — it's a single command to run
+capacity/mentions tables from MSI S3 using `AWS_ACCESS_KEY_ID`/`SECRET`,
+writes `site_data/` locally), builds `site/` with `npm run build`, then
+switches the active AWS identity to `SITE_AWS_ACCESS_KEY_ID`/`SECRET` (the
+site-hosting account) before syncing both to the bucket and invalidating the
+CloudFront cache — see the script's header comment for exactly where that
+override happens. Nothing runs on a schedule — it's a single command to run
 by hand whenever there's new data.
 
 `site_data/` and `site/dist/` are build artifacts, not checked in; deploying
