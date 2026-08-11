@@ -76,9 +76,10 @@
     <div class="caveats">
       <strong>Caveats.</strong>
       <ul>
-        <li>arXiv is a self-selected preprint corpus, skewed toward CS/physics; regex/LLM extraction from LaTeX source can over- or under-count relative to other corpora, so cross-corpus level comparisons are not meaningful — only within-corpus trends.</li>
-        <li>Reported compute/memory figures are nameplate/peak hardware specs the paper chose to report, not measured utilized FLOPs — an upper bound on compute actually used.</li>
-        <li>Device-count and per-device quantities assume 1 device when a paper reports use without a count (the "floor1" policy); an explicit-count-only variant is not shown here.</li>
+        <li>arXiv is a self-selected preprint corpus and skews toward CS/physics.</li>
+        <li>This extraction from LaTeX source likely under-estimates actual accelerator prevalence, as extraction errors or lack of in-paper reporting may introduce a downward bias: trends are more meaningful than actual quantities.</li>
+        <li>Reported compute/memory figures are derived by matching paper-reported hardware to its closest specification and should be understood as an upper bound estimate on compute actually used by the work.</li>
+        <li>Device-count and per-device quantities assume one device when a paper reports accelerator use without specifying an exact number of devices used.</li>
       </ul>
     </div>
   </main>
