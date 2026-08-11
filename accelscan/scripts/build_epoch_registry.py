@@ -66,6 +66,31 @@ MANUFACTURER = {
     'National University of Defense Technology': 'nudt',
 }
 
+# NVIDIA's model code IS its architecture generation (P=Pascal, T=Turing,
+# A=Ampere, L=Ada Lovelace, H=Hopper, GB=Blackwell) -- unlike every other
+# manufacturer in this table, which has no such documented per-model rule this
+# generator could apply without guessing. 'ada-lovelace' (not the shorter
+# 'ada' several consumer RTX-40 Wikipedia rows use) matches the slug the
+# Wikipedia-sourced NVIDIA L40 already carries -- the nearest existing
+# datacenter Ada part, and the more likely source-table sibling of L4/L20/L2.
+NVIDIA_ARCHITECTURE = [
+    (re.compile(r'\bGH\d'), 'hopper'),          # GH100, GH200 (Grace Hopper)
+    (re.compile(r'\bGB\d'), 'blackwell'),       # GB200, GB300 (Grace Blackwell)
+    (re.compile(r'\bH\d{2,4}\b'), 'hopper'),    # H20, H100, H800
+    (re.compile(r'\bA\d{2,4}[A-Z]?\b'), 'ampere'),   # A10G, A100, A800
+    (re.compile(r'\bL\d{1,3}\b'), 'ada-lovelace'),   # L2, L4, L20, L40
+    (re.compile(r'\bT\d\b'), 'turing'),         # T4
+    (re.compile(r'\bP\d\b'), 'pascal'),         # P4
+]
+
+
+def nvidia_architecture(name: str) -> str | None:
+    for pattern, arch in NVIDIA_ARCHITECTURE:
+        if pattern.search(name):
+            return arch
+    return None
+
+
 # Epoch's `Type` is the vendor's own marketing label and calls several NPUs
 # "GPU" (every Huawei Ascend row, for instance). Vendors whose parts are
 # unambiguously fixed-function ML ASICs override it; the rest take the column.
@@ -335,7 +360,8 @@ def build(csv_path: Path = CSV_PATH) -> tuple[list[dict], dict]:
                        TYPE_SUBTYPE.get(row[COL['type']], 'npu-asic'))
             entries[mid] = prev = {
                 'id': mid, 'display': name, 'manufacturer': mfr,
-                'architecture': None, 'subtype': subtype,
+                'architecture': nvidia_architecture(name) if mfr == 'nvidia' else None,
+                'subtype': subtype,
                 'segment': 'cloud' if mfr in CLOUD_MANUFACTURERS else 'datacenter',
                 'release': release, 'release_source': SOURCE_URL,
                 **{f: None for f, _, _ in SPECS},
