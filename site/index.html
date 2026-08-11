@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GPUs in Science — arXiv results</title>
+  <meta name="description" content="Prevalence, reported compute capacity, and device productivity of GPU/accelerator hardware in the arXiv full-text corpus." />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>GPUs in Science — arXiv results</h1>
+    <nav>
+      <a href="index.html">Charts</a>
+      <a href="papers.html">Browse papers</a>
+    </nav>
+  </header>
+  <main>
+    <section class="chart-card">
+      <h2>Full-text corpus size by field composition</h2>
+      <p class="note">arXiv full-text papers per year, split by top field.</p>
+      <div id="chart-corpus-composition" class="plot"></div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Accelerator reporting prevalence</h2>
+      <p class="note">Share of full-text papers mentioning, then reporting use of, an accelerator — overall and by field.</p>
+      <div class="panels">
+        <div id="chart-prevalence-overall" class="plot"></div>
+        <div id="chart-prevalence-field" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Paper reporting extraction funnel &amp; reporting specificity</h2>
+      <p class="note">How many papers survive each extraction stage, and the growing share naming a specific model.</p>
+      <div class="panels">
+        <div id="chart-funnel" class="plot"></div>
+        <div id="chart-specificity" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Reported compute &amp; memory vs the vendor frontier</h2>
+      <p class="note">Median/90th-percentile reported FP32 and VRAM, per device and per paper, against the best single-device datacenter GPU available each year. Reported nameplate/peak capacity, not utilized FLOPs.</p>
+      <div class="panels">
+        <div id="chart-compute" class="plot"></div>
+        <div id="chart-memory" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Reported compute &amp; memory by field</h2>
+      <p class="note">Median reported FP32 and VRAM per paper, by field, among the top fields by accelerator-mention volume.</p>
+      <div class="panels">
+        <div id="chart-by-field-compute" class="plot"></div>
+        <div id="chart-by-field-memory" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Within-field spread of reported compute &amp; memory</h2>
+      <p class="note">90th-percentile / median ratio per field-year (3-year moving average) — how unequal access is within each field.</p>
+      <div class="panels">
+        <div id="chart-spread-compute" class="plot"></div>
+        <div id="chart-spread-memory" class="plot"></div>
+      </div>
+    </section>
+
+    <section class="chart-card">
+      <h2>Paper support over device life</h2>
+      <p class="note">Papers supported per year since a model's release, for the top accelerator models by total paper support.</p>
+      <div id="chart-device-life" class="plot"></div>
+    </section>
+
+    <div class="caveats">
+      <strong>Caveats.</strong>
+      <ul>
+        <li>arXiv is a self-selected preprint corpus, skewed toward CS/physics; regex/LLM extraction from LaTeX source can over- or under-count relative to other corpora, so cross-corpus level comparisons are not meaningful — only within-corpus trends.</li>
+        <li>Reported compute/memory figures are nameplate/peak hardware specs the paper chose to report, not measured utilized FLOPs — an upper bound on compute actually used.</li>
+        <li>Device-count and per-device quantities assume 1 device when a paper reports use without a count (the "floor1" policy); an explicit-count-only variant is not shown here.</li>
+      </ul>
+    </div>
+  </main>
+  <script type="module" src="/src/charts.ts"></script>
+</body>
+</html>

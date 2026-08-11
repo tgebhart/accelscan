@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browse matched papers — GPUs in Science</title>
+  <meta name="description" content="Browse arXiv papers matched for accelerator hardware mentions, with the extracted evidence text and a link to the paper." />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Browse matched papers</h1>
+    <nav>
+      <a href="index.html">Charts</a>
+      <a href="papers.html">Browse papers</a>
+    </nav>
+  </header>
+  <main>
+    <p class="note" style="color: var(--muted); font-size: 0.88rem;">
+      Every accelerator mention the extraction pipeline confirmed in arXiv full text,
+      with the LLM's verbatim evidence quote and a link to the paper on arXiv.
+      Queries run entirely in your browser (DuckDB-WASM) over the published data —
+      nothing is sent to a server.
+    </p>
+
+    <div class="filters">
+      <input id="f-text" type="text" placeholder="Search title or evidence text…" />
+      <select id="f-year-min"></select>
+      <select id="f-year-max"></select>
+      <select id="f-field"><option value="">All fields</option></select>
+      <select id="f-manufacturer"><option value="">All manufacturers</option></select>
+      <select id="f-usage"><option value="">All usage contexts</option></select>
+    </div>
+    <div class="status-line" id="status">Loading…</div>
+
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Year</th>
+          <th>Paper</th>
+          <th>Model</th>
+          <th>Manufacturer</th>
+          <th>Usage</th>
+          <th>Evidence</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+
+    <div class="pager">
+      <button id="prev-page">&larr; Prev</button>
+      <span id="page-label"></span>
+      <button id="next-page">Next &rarr;</button>
+    </div>
+
+    <div class="caveats">
+      <strong>Caveats.</strong>
+      <ul>
+        <li>A paper can have several mentions (one per model/context); "used-in-this-work" mentions are the ones the rest of the site's compute/prevalence figures count as reported use.</li>
+        <li>Model names are canonicalized against a hand-curated hardware registry; strings the registry couldn't resolve show the raw model name reported.</li>
+        <li>Extraction from arXiv LaTeX source, not S2ORC/GROBID — text fidelity is generally higher, but candidate rates run higher too, so treat mention volume as this-corpus-only.</li>
+      </ul>
+    </div>
+  </main>
+  <script type="module" src="/src/drilldown.ts"></script>
+</body>
+</html>
