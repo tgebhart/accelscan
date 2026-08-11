@@ -175,9 +175,18 @@ def build_charts(cap: pl.DataFrame, top_fields: list, papers: pl.DataFrame,
 
 def build_drilldown(c, reg, so, prompt_version: str, model_tag: str) -> pl.DataFrame:
     """One row per DISTINCT (paper, model, usage context, evidence quote) among
-    `status=='ok'` mentions, joined to arXiv title/category metadata. No
-    `passage_text` — `evidence_quote` is the drill-down's display text; see
-    module docstring.
+    `status=='ok'` ACCELERATOR mentions, joined to arXiv title/category
+    metadata. No `passage_text` — `evidence_quote` is the drill-down's display
+    text; see module docstring.
+
+    `accelerator_subtype != 'not-an-accelerator'` is the load-bearing filter
+    here: the extraction LLM's off-ramp for registry false positives is a
+    real label on 10.1% of `ok` mentions corpus-wide (K80-the-antibody, and
+    software model names like "Claude 3.7 Sonnet" or "Llama-3.3-70B-Instruct"
+    that a bare-model-name-shaped alias can still surface as a registry
+    candidate). Every chart already excludes these via the same column
+    (`denominator.build_paper_flags`); the drill-down just hadn't been
+    filtering on it.
 
     Two de-duplications, neither of which touches any chart's numbers (every
     chart aggregates at the paper or paper-model grain via group_by, which
@@ -194,7 +203,8 @@ def build_drilldown(c, reg, so, prompt_version: str, model_tag: str) -> pl.DataF
        silently double every one of that paper's rows.
     """
     m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version, corpus=c), storage_options=so)
-         .filter(pl.col('status') == 'ok')
+         .filter((pl.col('status') == 'ok')
+                 & (pl.col('accelerator_subtype') != 'not-an-accelerator'))
          .select(c.key, 'passage_id', 'model_raw', 'model_normalized', 'manufacturer',
                  'accelerator_subtype', 'device_count', 'usage_context', 'evidence_quote')
          .collect())
