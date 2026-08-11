@@ -174,18 +174,37 @@ def build_charts(cap: pl.DataFrame, top_fields: list, papers: pl.DataFrame,
 
 
 def build_drilldown(c, reg, so, prompt_version: str, model_tag: str) -> pl.DataFrame:
-    """One row per `status=='ok'` mention, canonicalized and joined to arXiv
-    title/category metadata. No `passage_text` — `evidence_quote` is the
-    drill-down's display text; see module docstring."""
+    """One row per DISTINCT (paper, model, usage context, evidence quote) among
+    `status=='ok'` mentions, joined to arXiv title/category metadata. No
+    `passage_text` — `evidence_quote` is the drill-down's display text; see
+    module docstring.
+
+    Two de-duplications, neither of which touches any chart's numbers (every
+    chart aggregates at the paper or paper-model grain via group_by, which
+    already collapses these):
+
+    1. Overlapping passage windows ("matched paragraph +/- 1 neighbor
+       paragraph", `scan.py`) mean two adjacent passages can share a sentence,
+       and the LLM then extracts the identical `evidence_quote` from both --
+       11.5% of `ok` mentions corpus-wide are such exact duplicates. Kept as
+       distinct mentions upstream (they DO count once each toward device/model
+       identification), but shown once in a paper's drill-down list.
+    2. 78 paper_ids appear more than once in `arxiv_metadata.parquet` (an
+       upstream snapshot artifact); an inner join without deduping first would
+       silently double every one of that paper's rows.
+    """
     m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version, corpus=c), storage_options=so)
          .filter(pl.col('status') == 'ok')
          .select(c.key, 'passage_id', 'model_raw', 'model_normalized', 'manufacturer',
                  'accelerator_subtype', 'device_count', 'usage_context', 'evidence_quote')
          .collect())
     m = canonicalize_column(m, reg)
+    m = m.unique(subset=[c.key, 'canonical_model', 'usage_context', 'evidence_quote'],
+                 keep='first')
 
     meta = (pl.scan_parquet(s3_uri(arxiv_metadata_key()), storage_options=so)
             .select('paper_id', 'arxiv_id', 'title', 'year', 'primary_category')
+            .unique(subset='paper_id', keep='first')
             .collect())
     fields = paper_fields(c, m.select(c.key).unique(), so).select(c.key, 'field')
 
