@@ -66,20 +66,26 @@ def build_denominator(so: dict, client, c: Corpus = S2ORC) -> pl.DataFrame:
     return inv.join(meta, on=c.key, how='left')
 
 
-def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
-                      c: Corpus = S2ORC) -> pl.DataFrame:
-    """Accelerator numerators per paper (from mentions + canonicalization)."""
-    from accelscan.normalize import canonicalize_column
-    from accelscan.registry import load_registry
-    from accelscan.s3 import mentions_glob
-    reg = load_registry()
+def paper_flags_from_mentions(m: pl.DataFrame, reg, key: str) -> pl.DataFrame:
+    """One row per paper with >=1 accelerator mention, from a raw mentions
+    frame (`status`, `model_normalized`, `manufacturer`, `accelerator_subtype`,
+    `usage_context`, `device_count`, plus the key column).
 
-    m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version, corpus=c),
-                        storage_options=so)
-         .filter(pl.col('status') == 'ok')
-         .select(c.key, 'model_normalized', 'manufacturer',
-                 'accelerator_subtype', 'usage_context', 'device_count')
-         .collect())
+    Filters to `status == 'ok'` AND `accelerator_subtype != 'not-an-
+    accelerator'` -- that second condition is the extraction schema's own
+    off-ramp for registry false positives (K80 the antibody, or a software
+    model name like "Claude 3.7 Sonnet" that a bare-model-name-shaped alias
+    can still surface as a candidate) and previously wasn't applied here.
+    Measured on arXiv: 17,905 papers (6.2% of those with >=1 `ok` mention) had
+    `accel_any` true for no other reason, 5,174 for `accel_used`. A paper left
+    with zero rows after this filter gets no row in the output -- callers
+    that left-join this table must already treat a missing row as all-False
+    (the existing convention, e.g. `.fill_null(False)` in every notebook).
+    """
+    from accelscan.normalize import canonicalize_column
+
+    m = m.filter((pl.col('status') == 'ok')
+                & (pl.col('accelerator_subtype') != 'not-an-accelerator'))
     m = canonicalize_column(m, reg)
     rel = {mid: int(mm.release[:4]) for mid, mm in reg.models.items() if mm.release}
     m = m.with_columns(
@@ -88,7 +94,7 @@ def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
         is_model=(pl.col('canonical_kind') == 'model'),
         is_used=(pl.col('usage_context') == USED))
 
-    return m.group_by(c.key).agg(
+    return m.group_by(key).agg(
         accel_any=pl.lit(True),
         accel_used=pl.col('is_used').any(),
         model_specific=pl.col('is_model').any(),
@@ -104,6 +110,21 @@ def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
         max_device_count=pl.col('device_count').filter(pl.col('is_used')).max(),
         usage_contexts=pl.col('usage_context').unique(),
     ).with_columns(generic_only=~pl.col('model_specific'))
+
+
+def build_paper_flags(so: dict, model_tag: str, prompt_version: str,
+                      c: Corpus = S2ORC) -> pl.DataFrame:
+    """Accelerator numerators per paper (from mentions + canonicalization)."""
+    from accelscan.registry import load_registry
+    from accelscan.s3 import mentions_glob
+    reg = load_registry()
+
+    m = (pl.scan_parquet(mentions_glob(model_tag, prompt_version, corpus=c),
+                        storage_options=so)
+         .select(c.key, 'status', 'model_normalized', 'manufacturer',
+                 'accelerator_subtype', 'usage_context', 'device_count')
+         .collect())
+    return paper_flags_from_mentions(m, reg, c.key)
 
 
 def build_citations(so: dict, client, focal: pl.DataFrame) -> pl.DataFrame:
