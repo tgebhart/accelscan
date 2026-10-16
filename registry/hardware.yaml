@@ -23,7 +23,7 @@
 #     match itself).
 #   - kind: model (default) | architecture | generic.
 
-version: "0.4.0"
+version: "0.4.3"
 
 context_terms:
   gpu: ["GPU", "GPUs", "GPGPU", "graphics card", "graphics cards", "video card",
@@ -35,6 +35,225 @@ context_terms:
           "Neural Engine", "M-series"]
 
 models:
+
+  # ------------------------------------------------------------------
+  # Hand overrides of generated entries (same id as a registry/generated/*
+  # entry -- this fully replaces it, field-for-field, so every field the
+  # generated entry had must be repeated here, not just the corrected ones).
+  # ------------------------------------------------------------------
+  - id: biren-br100
+    display: Biren BR100
+    manufacturer: biren
+    architecture: null
+    subtype: datacenter-gpu
+    segment: datacenter
+    release: 2022-08
+    release_source: https://epoch.ai/data/machine-learning-hardware
+    # Epoch.ai's "FP32"/"Tensor-FP16" columns for this row are actually
+    # Biren's published TF32 (256 TFLOPS) and INT8 (1024 TOPS) marketing
+    # figures, not dense FP32/BF16 -- confirmed by GFLOPS/W: 465 vs every
+    # other datacenter part in the registry under ~250. This single
+    # mislabeled value otherwise pins the vendor-frontier FP32 line flat
+    # from 2022 on, masking the real H100->H200->B200->GB200 progression.
+    # No independently-sourced dense FP32/BF16 figure is available, so both
+    # are nulled (excluded from the compute-capacity axes) rather than
+    # guessed.
+    fp32_gflops: null
+    fp64_gflops: null
+    fp16_tensor_gflops: null
+    vram_gb: 64.0
+    tdp_w: 550.0
+    spec_source: https://epoch.ai/data/machine-learning-hardware
+    aliases:
+    - pattern: Biren BR100
+      case: insensitive
+    - pattern: BR100
+      gate: gpu
+    notes: null
+  - id: amd-mi325x
+    display: AMD MI325X
+    manufacturer: amd
+    family: null
+    architecture: cdna-3
+    subtype: datacenter-gpu
+    segment: datacenter
+    release: '2024'
+    release_source: https://en.wikipedia.org/wiki/AMD_Instinct?oldid=1361556227
+    # Wikipedia's scraped figures are off by 1000x for this one row (163.4/81.7
+    # read as already-GFLOPS instead of TFLOPS-needing-conversion) -- MI325X
+    # shares its die with MI300X (fp32_gflops: 163400, fp64_gflops: 81700),
+    # so the corrected values are copied from that entry's ratio rather than
+    # left as an implausible 0.16 TFLOPS for a 256GB-HBM3e flagship part.
+    fp32_gflops: 163400.0
+    fp64_gflops: 81700.0
+    fp16_tensor_gflops: null
+    vram_gb: 256.0
+    tdp_w: null
+    spec_source: https://en.wikipedia.org/wiki/AMD_Instinct?oldid=1361556227
+    aliases:
+    - Instinct MI325X
+    - pattern: AMD MI325X
+      case: insensitive
+    - pattern: MI325X
+      gate: gpu
+
+  # ------------------------------------------------------------------
+  # Multi-GPU rackmount appliances (Tesla S-series, Quadro Plex D2/S4): each
+  # houses 2 or 4 discrete GPU boards in one chassis, but the generated
+  # entries' fp32/fp64/tdp figures are the WHOLE-APPLIANCE total (all GPUs
+  # summed) while vram_gb is correctly per-GPU -- an internal mismatch that
+  # silently set the FP32/VRAM vendor-frontier line for 2007-2016 (S1070/S2050
+  # are the actual frontier-setters those years) and produces an obviously
+  # wrong flat ~800-1200W "single device" TDP frontier for a decade. No
+  # independently-verified per-die FLOPS/TDP split is available for hardware
+  # this old, so rather than guess a /2 or /4 correction, segment is nulled:
+  # these stay matchable (a paper saying "Tesla S1070" still counts as
+  # accelerator use) but drop out of every segment=='datacenter' frontier calc.
+  # ------------------------------------------------------------------
+  - id: nvidia-s870
+    display: NVIDIA S870
+    manufacturer: nvidia
+    family: tesla
+    architecture: tesla
+    subtype: datacenter-gpu
+    segment: null
+    release: 2007-05
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 1382.0
+    fp64_gflops: null
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: null
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - pattern: NVIDIA S870
+      case: insensitive
+    - pattern: Tesla S870
+      case: insensitive
+    - pattern: S870
+      gate: gpu
+  - id: nvidia-s1070
+    display: NVIDIA S1070
+    manufacturer: nvidia
+    family: tesla
+    architecture: tesla
+    subtype: datacenter-gpu
+    segment: null
+    release: 2008-06
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 2765.0
+    fp64_gflops: 345.6
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: 800.0
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - pattern: NVIDIA S1070
+      case: insensitive
+    - pattern: Tesla S1070
+      case: insensitive
+    - pattern: S1070
+      gate: gpu
+  - id: nvidia-s1075
+    display: NVIDIA S1075
+    manufacturer: nvidia
+    family: tesla
+    architecture: tesla
+    subtype: datacenter-gpu
+    segment: null
+    release: 2008-06
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 2765.0
+    fp64_gflops: 345.6
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: null
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - pattern: NVIDIA S1075
+      case: insensitive
+    - pattern: Tesla S1075
+      case: insensitive
+    - pattern: S1075
+      gate: gpu
+  - id: nvidia-s2050
+    display: NVIDIA S2050
+    manufacturer: nvidia
+    family: tesla
+    architecture: fermi
+    subtype: datacenter-gpu
+    segment: null
+    release: 2011-07
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 4122.0
+    fp64_gflops: 2061.0
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: 900.0
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - pattern: NVIDIA S2050
+      case: insensitive
+    - pattern: Tesla S2050
+      case: insensitive
+    - pattern: S2050
+      gate: gpu
+  - id: nvidia-s2070
+    display: NVIDIA S2070
+    manufacturer: nvidia
+    family: tesla
+    architecture: fermi
+    subtype: datacenter-gpu
+    segment: null
+    release: 2011-07
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 4122.0
+    fp64_gflops: 2061.0
+    fp16_tensor_gflops: null
+    vram_gb: 6.0
+    tdp_w: 900.0
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - pattern: NVIDIA S2070
+      case: insensitive
+    - pattern: Tesla S2070
+      case: insensitive
+    - pattern: S2070
+      gate: gpu
+  - id: nvidia-quadro-plex-2200-d2
+    display: NVIDIA Quadro Plex 2200 D2
+    manufacturer: nvidia
+    family: tesla
+    architecture: tesla
+    subtype: datacenter-gpu
+    segment: null
+    release: 2008-07
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 1244.0
+    fp64_gflops: 155.5
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: null
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - Quadro Plex 2200 D2
+  - id: nvidia-quadro-plex-2200-s4
+    display: NVIDIA Quadro Plex 2200 S4
+    manufacturer: nvidia
+    family: tesla
+    architecture: tesla
+    subtype: datacenter-gpu
+    segment: null
+    release: 2008-07
+    release_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497
+    fp32_gflops: 2488.0
+    fp64_gflops: 311.0
+    fp16_tensor_gflops: null
+    vram_gb: 4.0
+    tdp_w: 1200.0
+    spec_source: https://en.wikipedia.org/wiki/List_of_Nvidia_graphics_processing_units?oldid=1363236497#Tesla
+    aliases:
+    - Quadro Plex 2200 S4
 
   # ------------------------------------------------------------------
   # Generic terms (first-class: measure generic-only vs model-specific)

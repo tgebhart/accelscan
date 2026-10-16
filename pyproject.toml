@@ -26,6 +26,11 @@ cluster = ["bertopic>=0.16", "umap-learn>=0.5", "hdbscan>=0.8", "scikit-learn>=1
 # install and needs neither.
 registry = ["pandas>=2.0", "requests>=2.31", "beautifulsoup4>=4.12", "lxml>=5.0"]
 s2 = ["requests>=2.31", "pandas>=2.0", "numpy>=1.26"]
+# Regression analysis (notebooks/citations.ipynb). pyfixest pulls pandas, which
+# is what its formula interface consumes -- accelscan.regress.to_pandas does the
+# polars hand-off with numpy so no pyarrow is needed. Kept out of the core deps
+# for the same reason as [registry]: stage 1 runs on EC2 with a minimal install.
+analysis = ["pyfixest>=0.60"]
 dev = ["pytest>=8.0"]
 
 [build-system]

@@ -1,0 +1,34 @@
+#!/bin/bash -l
+#SBATCH --time=8:00:00
+#SBATCH -p msibigmem
+#SBATCH -A funkr
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=200gb
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=gebhart@umn.edu
+# S2ORC stages 3.5 + 4a -- run after extraction/LLM inference (stage 2) has
+# already produced a mentions table; nothing here re-extracts. Citations ARE
+# built here (unlike the arXiv variant): S2ORC carries Semantic Scholar
+# identifiers, so --skip-citations is never passed.
+#
+# Registry-version bumps that only touch spec fields (fp32/fp64/tdp_w/segment,
+# no alias/pattern changes) do NOT require re-running stage 1 (scan), stage 1.5
+# (repack), or stage 2 (infer) -- compute.py/denominator.py discover the
+# EXTRACTION-time registry version from the mentions table path itself
+# (mentions_glob/discover_mentions_version), independent of the registry
+# version installed locally. repack.py has no such discovery (it reads/writes
+# candidates/passages at whatever `reg.version` is current when it runs), so
+# it must NOT be included here -- it would look for candidates under the new
+# version, which only stage 1 (scan) can produce, and stage 1 output is
+# unaffected by a spec-only bump.
+export PYTHONUNBUFFERED=TRUE
+cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
+set -a; source .env; set +a
+source activate accelscan
+
+python -m accelscan.denominator --corpus s2orc
+python -m accelscan.compute     --corpus s2orc
+python -m accelscan.compute     --corpus s2orc --count-policy explicit
+python -m accelscan.precision   --corpus s2orc

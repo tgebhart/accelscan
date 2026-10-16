@@ -48,7 +48,7 @@ FIG_ROOT = Path('output/analysis')
 FIG_FORMAT = 'pdf'
 SLUG_MAX = 70
 
-_state = {'notebook': None, 'n': 0, 'saved': set()}
+_state = {'notebook': None, 'n': 0}
 
 
 def _all_axes(fig):
@@ -205,7 +205,7 @@ def save_figure(fig) -> Path | None:
 
 def setup_figures(notebook: str | None = None) -> None:
     """Patch plt.show to fix year ticks and export each figure. Idempotent."""
-    _state.update(notebook=notebook, n=0, saved=set())
+    _state.update(notebook=notebook, n=0)
     # Unwrap any hook we installed earlier and re-wrap, rather than returning
     # early: that keeps this idempotent (hooks never stack) while still picking up
     # edits to this module in a live kernel, where an early return would pin the
@@ -215,9 +215,12 @@ def setup_figures(notebook: str | None = None) -> None:
     def show(*a, **kw):
         for num in plt.get_fignums():
             fig = plt.figure(num)
-            if id(fig) in _state['saved']:
+            # marked on the figure, not in a set of id()s: the inline backend
+            # closes figures after each cell, so CPython recycles the address and
+            # an id()-keyed set silently skips a later figure as "already saved"
+            if getattr(fig, '_accelscan_saved', False):
                 continue
-            _state['saved'].add(id(fig))
+            fig._accelscan_saved = True
             integerize_year_ticks(fig)
             clean_log_axes(fig)
             percent_tick_labels(fig)

@@ -8,15 +8,32 @@
 #SBATCH --mem=200gb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=gebhart@umn.edu
-# arXiv stages 3.5 + 4a. No citations table: the arXiv corpus carries no Semantic
-# Scholar identifiers by design, so citation analyses are S2ORC-only.
+# arXiv stages 3.5 + 4a -- run after extraction/LLM inference (stage 2) has
+# already produced a mentions table; nothing here re-extracts. No citations
+# table: the arXiv corpus carries no Semantic Scholar identifiers by design,
+# so citation analyses are S2ORC-only.
+#
+# Registry-version bumps that only touch spec fields (fp32/fp64/tdp_w/segment,
+# no alias/pattern changes) do NOT require re-running stage 1 (scan), stage 1.5
+# (repack), or stage 2 (infer) -- compute.py/denominator.py discover the
+# EXTRACTION-time registry version from the mentions table path itself
+# (mentions_glob/discover_mentions_version), independent of the registry
+# version installed locally. repack.py has no such discovery (it reads/writes
+# candidates/passages at whatever `reg.version` is current when it runs), so
+# it must NOT be included here -- it would look for candidates under the new
+# version, which only stage 1 (scan) can produce, and stage 1 output is
+# unaffected by a spec-only bump.
 export PYTHONUNBUFFERED=TRUE
 cd $MSIPROJECT/gebhart/projects/rfunklab/accelscan
 set -a; source .env; set +a
 source activate accelscan
 
-python -m accelscan.repack      --corpus arxiv
-python -m accelscan.denominator --corpus arxiv          # denominator + paper_flags
-python -m accelscan.compute     --corpus arxiv
-python -m accelscan.compute     --corpus arxiv --count-policy explicit
-python -m accelscan.precision   --corpus arxiv
+python -m accelscan.denominator --corpus arxiv --skip-citations
+python -m accelscan.compute --corpus arxiv
+python -m accelscan.compute --corpus arxiv --count-policy explicit
+python -m accelscan.precision --corpus arxiv
+
+# Public website data export -- reads the denominator/compute output above
+# (floor1 policy, the site's default), so it belongs after those stages, not
+# before. Defaults already target --corpus arxiv; writes to ./site_data.
+python -m accelscan.scripts.export_site_data
