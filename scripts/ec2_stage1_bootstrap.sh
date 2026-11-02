@@ -19,7 +19,10 @@
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY   MSI keys, for writing outputs
 #   ARXIV_AWS_ACCESS_KEY_ID / ..._SECRET        AWS keys, if no instance role
 #   YYMM_RANGE                                  e.g. 9108-0512 (this slice)
-# Optional: ACCELSCAN_REPO (default below), ACCELSCAN_REF (default main)
+# Optional: ACCELSCAN_REPO (default below), ACCELSCAN_REF (default main),
+#   REGISTRY_VERSION   output prefix version, when appending months to an older
+#                      extraction with an identical matcher (e.g. 0.4.0); see
+#                      `arxiv_scan --registry-version`
 set -o pipefail
 : "${YYMM_RANGE:?set YYMM_RANGE, e.g. 9108-0512}"
 ACCELSCAN_REPO="${ACCELSCAN_REPO:-github.com/tgebhart/accelscan.git}"
@@ -52,8 +55,9 @@ python3 -m venv /opt/venv
 PY=/opt/venv/bin/python
 
 # registry/ is repo-relative, so run from the repo root (see accelscan/registry.py)
-$PY -m accelscan.arxiv_scan --dry-run --yymm "$YYMM_RANGE" | tail -25
-$PY -m accelscan.arxiv_scan --yymm "$YYMM_RANGE" --max-workers "$(nproc)" \
+RV_ARGS=${REGISTRY_VERSION:+--registry-version $REGISTRY_VERSION}
+$PY -m accelscan.arxiv_scan --dry-run --yymm "$YYMM_RANGE" $RV_ARGS | tail -25
+$PY -m accelscan.arxiv_scan --yymm "$YYMM_RANGE" --max-workers "$(nproc)" $RV_ARGS \
   2>&1 | tee "/var/log/arxiv_scan_${YYMM_RANGE}.log"
 
 echo "stage 1 complete for $YYMM_RANGE; outputs are on MSI S3 under accelscan/arxiv/"

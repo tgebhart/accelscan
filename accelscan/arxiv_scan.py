@@ -187,7 +187,7 @@ def scan_tar_stream(tf, entry: TarEntry, reg, timings: dict | None = None,
 _WORKER: dict = {}
 
 
-def _worker_state(registry_version: str) -> dict:
+def _worker_state(matcher_version: str) -> dict:
     """Per-process registry + S3 clients, built once. Also arms the debug handlers.
 
     `load_registry` is not memoized and costs ~1.1 s, and each boto3 client reparses
@@ -202,8 +202,8 @@ def _worker_state(registry_version: str) -> dict:
     if not _WORKER:
         from accelscan.s3 import make_s3_client
         reg = load_registry()
-        if reg.version != registry_version:
-            raise RuntimeError(f'registry {reg.version} != requested {registry_version}')
+        if reg.version != matcher_version:
+            raise RuntimeError(f'registry {reg.version} != requested {matcher_version}')
         faulthandler.enable()
         if hasattr(signal, 'SIGUSR1'):
             faulthandler.register(signal.SIGUSR1, chain=True)
@@ -212,15 +212,20 @@ def _worker_state(registry_version: str) -> dict:
 
 
 def process_tar(entry: TarEntry, registry_version: str, verify_md5: bool = False,
-                watchdog_secs: int = 300, paper_timeout: float = 120) -> str:
+                watchdog_secs: int = 300, paper_timeout: float = 120,
+                matcher_version: str | None = None) -> str:
     """Worker: stream one tar, scan it, upload outputs + `.done` marker.
+
+    `registry_version` names the output prefix; `matcher_version` (default: the
+    same) is the registry the worker must actually load. They differ only under
+    `--registry-version` (see `main`).
 
     A tar that outlives `watchdog_secs` dumps its traceback to the log and keeps
     going (`repeat=True`), so a hang names its own line instead of showing up as an
     absence of markers in an S3 listing an hour later. The watchdog runs in its own
     thread and therefore fires even while the main thread is blocked in C.
     """
-    st = _worker_state(registry_version)
+    st = _worker_state(matcher_version or registry_version)
     msi, aws, reg = st['msi'], st['aws'], st['reg']
     timings: dict = {}
     t0 = time.time()
@@ -274,7 +279,8 @@ def _todo(entries: list[TarEntry], registry_version: str, client,
 
 def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
              verify_md5: bool = False, max_rounds: int = 6,
-             watchdog_secs: int = 300, paper_timeout: float = 120) -> tuple[int, int]:
+             watchdog_secs: int = 300, paper_timeout: float = 120,
+             matcher_version: str | None = None) -> tuple[int, int]:
     """Scan `todo` in a process pool, rebuilding the pool if it breaks. -> (ok, failed).
 
     A per-tar exception is logged and skipped -- one lost tar out of thousands is
@@ -302,7 +308,8 @@ def run_pool(todo: list[TarEntry], registry_version: str, max_workers: int,
         retry, broke = [], False
         with ProcessPoolExecutor(max_workers=workers) as ex:
             futures = {ex.submit(process_tar, e, registry_version, verify_md5,
-                                 watchdog_secs, paper_timeout): e for e in pending}
+                                 watchdog_secs, paper_timeout, matcher_version): e
+                       for e in pending}
             for fut in as_completed(futures):
                 entry = futures[fut]
                 try:
@@ -355,6 +362,11 @@ def main() -> None:
     ap.add_argument('--yes-i-know', action='store_true',
                     help='proceed outside us-east-1 despite the egress cost')
     ap.add_argument('--manifest-cache', default=MANIFEST_CACHE)
+    ap.add_argument('--registry-version',
+                    help='output prefix version (default: installed registry). Set it '
+                         'to append new months to an older extraction whose matcher '
+                         'is identical to the installed one (aliases/gates unchanged, '
+                         'spec-only bumps), e.g. 0.4.0 while 0.4.3 is installed')
     ap.add_argument('--watchdog-secs', type=int, default=300,
                     help='dump a stuck tar\'s traceback after this long (0 disables)')
     ap.add_argument('--paper-timeout', type=float, default=120,
@@ -363,6 +375,12 @@ def main() -> None:
     args = ap.parse_args()
 
     reg = load_registry()
+    rv = args.registry_version or reg.version
+    if rv != reg.version:
+        # The matcher is the installed registry; only the output label changes. This
+        # is valid only when the two versions compile to the same aliases and gates.
+        print(f'writing under candidates/{rv} with the installed {reg.version} '
+              f'matcher', file=sys.stderr)
     entries = load_manifest(cache=args.manifest_cache)
     yymm = tuple(args.yymm.split('-')) if args.yymm else None
     if yymm and len(yymm) != 2:
@@ -374,7 +392,7 @@ def main() -> None:
 
     from accelscan.s3 import make_s3_client
     msi = make_s3_client()
-    todo = _todo(entries, reg.version, msi, args.verify_md5)
+    todo = _todo(entries, rv, msi, args.verify_md5)
     n_bytes = manifest_bytes_total(todo)
     print(f'{len(entries)} tars selected ({entries[0].yymm}..{entries[-1].yymm}), '
           f'{len(entries) - len(todo)} already done, {len(todo)} to scan, '
@@ -394,9 +412,10 @@ def main() -> None:
     if not in_arxiv_region() and not args.yes_i_know:
         ap.error('refusing to pay egress outside us-east-1; pass --yes-i-know to override')
 
-    ok, failed = run_pool(todo, reg.version, args.max_workers, args.verify_md5,
+    ok, failed = run_pool(todo, rv, args.max_workers, args.verify_md5,
                           watchdog_secs=args.watchdog_secs,
-                          paper_timeout=args.paper_timeout)
+                          paper_timeout=args.paper_timeout,
+                          matcher_version=reg.version)
     print(f'{ok} tars scanned, {failed} failed', file=sys.stderr)
     if failed:
         raise SystemExit(1)
